@@ -9,7 +9,6 @@ import { AuthContextProvider } from "./context/AuthContext.jsx";
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <>
-      <h1 className="text-2xl font-bold mb-2 text-center">Minute Burger</h1>
       <AuthContextProvider>
         <RouterProvider router={router} />
       </AuthContextProvider>

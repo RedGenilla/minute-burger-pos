@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { UserAuth } from "../context/AuthContext";
+import './Signin.css';
+import './Signup.css';
+import minuteLogo from '../assets/minute.png'; // adjust path as needed
+import burgerLogo from '../assets/burger.png';
 
 const Signin = () => {
   const [email, setEmail] = useState("");
@@ -34,37 +38,49 @@ const Signin = () => {
   };
 
   return (
-    <div>
-      <form onSubmit={handleSignIn} className="max-w-md m-auto pt-24">
-        <h2 className="text-2xl font-bold mb-2 text-center">Sign in</h2>
-        <p>
-          Don't have an account yet? <Link to="/signup">Sign up</Link>
-        </p>
-        <div className="flex flex-col py-4">
-          {/* <label htmlFor="Email">Email</label> */}
-          <input
-            onChange={(e) => setEmail(e.target.value)}
-            className="p-3 mt-2"
-            type="email"
-            name="email"
-            id="email"
-            placeholder="Email"
-          />
+    <div className="signin-bg">
+      <div className="signin-poster">
+        <div className="signin-header">
+          <span>MINUTE</span>
+          <img src={minuteLogo} alt="Minute Burger Logo" />
+          <span>BURGER</span>
         </div>
-        <div className="flex flex-col py-4">
-          {/* <label htmlFor="Password">Password</label> */}
-          <input
-            onChange={(e) => setPassword(e.target.value)}
-            className="p-3 mt-2"
-            type="password"
-            name="password"
-            id="password"
-            placeholder="Password"
-          />
+        <div className="signin-container">
+          <h2 className="signin-title">Sign in</h2>
+          <form onSubmit={handleSignIn} className="signin-form">
+            <p>
+              Don't have an account yet? <Link to="/signup">Sign up</Link>
+            </p>
+            <div className="signin-input-group">
+              <input
+                onChange={(e) => setEmail(e.target.value)}
+                className="signin-input"
+                type="email"
+                name="email"
+                id="email"
+                placeholder="User"
+              />
+            </div>
+            <div className="signin-input-group">
+              <input
+                onChange={(e) => setPassword(e.target.value)}
+                className="signin-input"
+                type="password"
+                name="password"
+                id="password"
+                placeholder="Password"
+              />
+            </div>
+            <button className="signin-button" type="submit">Sign In</button>
+            {error && <p className="text-red-600 text-center pt-4">{error}</p>}
+          </form>
+          <div className="terms">Terms and Conditions</div>
         </div>
-        <button className="w-full mt-4">Sign In</button>
-        {error && <p className="text-red-600 text-center pt-4">{error}</p>}
-      </form>
+        <div className="signin-footer">
+          <hr />
+          <img src={minuteLogo} alt="Minute Burger Logo" />
+        </div>
+      </div>
     </div>
   );
 };
