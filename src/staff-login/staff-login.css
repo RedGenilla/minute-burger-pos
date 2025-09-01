@@ -1,0 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+.staff-bg {
+  margin: 0;
+  background-color: #FFD94A;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+.staff-header {
+  text-align: center;
+  font-family: 'Fredoka One', cursive;
+  font-weight: bold;
+  font-size: 35px;
+  color: #5A2C0E;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.staff-header img {
+  width: 50px;
+  height: 40px;
+}
+
+.staff-poster {
+  width: 375px;
+  height: 750px;
+  background-color: #FFD94A;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+  box-sizing: border-box;
+}
+
+.login-container {
+  background-color: #fff;
+  width: 90%;
+  height: 80%;
+  border-radius: 6px;
+  padding: 30px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #000;
+  text-align: left;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+  width: 100%;
+}
+.input-field {
+  width: 91%;
+  padding: 12px 16px;
+  border: 1px solid #000;
+  border-radius: 25px;
+  outline: none;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  margin: 10px auto 0 auto;
+  display: block;
+}
+.input-field:focus {
+  border-color: #f7931e;
+  box-shadow: 0 0 5px rgba(247, 148, 30, 0.5);
+}
+
+.forgot-password {
+  display: block;
+  text-align: left;
+  font-size: 12px;
+  color: #555;
+  margin: 5px 0 15px 20px;
+  text-decoration: none;
+}
+.forgot-password:hover {
+  text-decoration: underline;
+}
+
+.btn-login {
+  background: #000;
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 25px;
+  padding: 12px;
+  cursor: pointer;
+  width: 120px;
+  display: block;
+  margin: 16px auto 0 auto;
+  align-self: center;
+  margin-top: 10px;
+  transition: background-color 0.2s ease;
+}
+.btn-login:hover {
+  background: #e88412;
+  color: #000;
+}
+
+.divider {
+  margin: 20px auto;
+  border: none;
+  border-top: 1px solid #000;
+  width: 90%;
+}
+
+.btn-role {
+  display: block;
+  width: 85%;
+  margin: 10px auto;
+  padding: 12px;
+  border: none;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn-role.admin {
+  background: #f7931e;
+  color: #000;
+}
+.btn-role.admin:hover {
+  background: #e67e00;
+}
+.btn-role.staff {
+  background: #ffd699;
+  color: #000;
+}
+.btn-role.staff:hover {
+  background: #ffbf66;
+}
+
+.terms {
+  font-size: 12px;
+  text-align: center;
+  margin-top: auto;
+  font-weight: bold;
+  color: #000;
+}
+
+.staff-footer {
+  text-align: center;
+  width: 100%;
+}
+.staff-footer hr {
+  border: none;
+  border-top: 1px solid #000;
+  margin-bottom: 8px;
+  width: 90%;
+}
+.footer-logo {
+  width: 80px;
+  height: auto;
+}

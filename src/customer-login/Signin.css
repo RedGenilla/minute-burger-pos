@@ -1,7 +1,8 @@
+/* Moved from components/Signin.css */
 @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
 
 /* Background (full screen yellow) */
-.signup-bg {
+.signin-bg {
   margin: 0;
   background-color: #FFD94A; /* Minute Burger yellow */
   display: flex;
@@ -12,9 +13,9 @@
 }
 
 /* Poster (centered login card) */
-.signup-poster {
+.signin-poster {
   width: 375px;
-  height: 812px;
+  height: 750px;
   background-color: #FFD94A;
   display: flex;
   flex-direction: column;
@@ -25,7 +26,7 @@
 }
 
 /* Header (Minute + logo + Burger) */
-.signup-header {
+.signin-header {
   text-align: center;
   font-family: 'Fredoka One', cursive;
   font-weight: bold;
@@ -37,13 +38,13 @@
   gap: 10px;
 }
 
-.signup-header img {
+.signin-header img {
   width: 50px;
   height: 40px;
 }
 
 /* White container for form */
-.signup-container {
+.signin-container {
   background-color: #fff;
   width: 90%;
   height: 80%;
@@ -54,19 +55,19 @@
   flex-direction: column;
 }
 
-.signup-title {
+.signin-title {
   font-size: 18px;
   margin-bottom: 20px;
 }
 
-.signup-form p {
+.signin-form p {
   font-size: 12px;
   margin-bottom: 20px;
 }
 
 /* Input fields */
 /* Input container */
-.signup-input-group {
+.signin-input-group {
   display: flex;
   flex-direction: column; /* keeps input + any future label stacked */
   margin-bottom: 15px;    /* space between inputs */
@@ -74,7 +75,7 @@
 }
 
 /* Input field */
-.signup-input {
+.signin-input {
   width: 91%;
   padding: 12px 16px;       /* extra padding for clean look */
   border: 1px solid #000;   /* black border */
@@ -85,13 +86,14 @@
 }
 
 /* On focus (when clicked/typing) */
-.signup-input:focus {
+.signin-input:focus {
   border-color: #F7941E; /* highlight with orange */
   box-shadow: 0 0 5px rgba(247, 148, 30, 0.5);
 }
 
+
 /* Button */
-.signup-button {
+.signin-button {
   background-color: #F7941E; /* Orange */
   color: #000;
   font-weight: bold;
@@ -107,7 +109,7 @@
   transition: background-color 0.2s ease;
 }
 
-.signup-button:hover {
+.signin-button:hover {
   background-color: #e88412;
 }
 
@@ -120,19 +122,19 @@
 }
 
 /* Footer (logo and separator line) */
-.signup-footer {
+.signin-footer {
   text-align: center;
   width: 100%;
 }
 
-.signup-footer hr {
+.signin-footer hr {
   border: none;
   border-top: 1px solid #000;
   margin-bottom: 8px;
   width: 90%;
 }
 
-.signup-footer img {
+.signin-footer img {
   width: 80px;
   height: auto;
 }

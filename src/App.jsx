@@ -1,9 +1,10 @@
 import { useContext, useState } from "react";
 
 import { Link } from "react-router-dom";
-import Signin from "./components/Signin";
+import Signin from "./customer-login/Signin";
 
-import { UserAuth } from "./context/AuthContext";
+import { UserAuth } from "./authenticator/AuthContext";
+import Dashboard from "./staff-page/Dashboard";
 
 function App() {
   const { user } = UserAuth();

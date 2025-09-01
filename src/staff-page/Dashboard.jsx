@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserAuth } from "../context/AuthContext";
+import { UserAuth } from "../authenticator/AuthContext";
 
 const Dashboard = () => {
   const { session, signOut } = UserAuth();
@@ -33,4 +33,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Dashboard;// Moved from routes/Dashboard.jsx
