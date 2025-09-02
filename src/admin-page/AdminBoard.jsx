@@ -60,22 +60,37 @@ export default function AdminBoard() {
 
 	// Add user to Supabase
 	const addUser = async (e) => {
-		e.preventDefault();
-		// Hash the password before saving
-		const hashedPassword = bcrypt.hashSync(newUser.password, 10);
-		const userToInsert = {
-			...newUser,
-			password: hashedPassword,
-		};
-		const { data, error } = await supabase.from("users").insert([userToInsert]);
-		if (!error) {
-			setShowForm(false);
-			setNewUser({ username: "", email: "", password: "", role: "Staff", status: "Inactive" });
-			// Manually fetch users after adding
-			const { data: usersData } = await supabase.from("users").select();
-			setUsers(usersData || []);
-		}
-	};
+    e.preventDefault();
+
+    // Only create Supabase Auth user for staff accounts
+    if (newUser.role === "Staff") {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: newUser.email,
+            password: newUser.password,
+            options: {
+                emailRedirectTo: window.location.origin + "/staff-login", // Change if needed
+            },
+        });
+        if (authError) {
+            alert("Failed to create staff in Auth: " + authError.message);
+            return;
+        }
+    }
+
+    // Hash the password before saving
+    const hashedPassword = bcrypt.hashSync(newUser.password, 10);
+    const userToInsert = {
+        ...newUser,
+        password: hashedPassword,
+    };
+    const { error } = await supabase.from("users").insert([userToInsert]);
+    if (!error) {
+        setShowForm(false);
+        setNewUser({ username: "", email: "", password: "", role: "Staff", status: "Inactive" });
+        const { data: usersData } = await supabase.from("users").select();
+        setUsers(usersData || []);
+    }
+};
 
 	// Delete user from Supabase
 	const deleteUser = async (id) => {
