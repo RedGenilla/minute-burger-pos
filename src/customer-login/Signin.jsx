@@ -21,11 +21,9 @@ const Signin = () => {
 
     if (error) {
       setError(error); // Set the error message if sign-in fails
-
-      // Set a timeout to clear the error message after a specific duration (e.g., 3 seconds)
       setTimeout(() => {
         setError("");
-      }, 3000); // 3000 milliseconds = 3 seconds
+      }, 3000);
     } else {
       // Redirect or perform any necessary actions after successful sign-in
       navigate("/dashboard");
@@ -33,7 +31,7 @@ const Signin = () => {
 
     if (session) {
       closeModal();
-      setError(""); // Reset the error when there's a session
+      setError("");
     }
   };
 

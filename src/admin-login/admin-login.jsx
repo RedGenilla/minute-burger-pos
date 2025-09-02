@@ -24,7 +24,7 @@ const AdminLogin = () => {
 		const email = e.target[0].value;
 		const password = e.target[1].value;
 
-		// 1. Fetch user from custom users table
+		// 1. Fetch user from custom profiles table
 		const { data: userData, error: userError } = await supabase
 			.from('profiles')
 			.select('*')
@@ -38,6 +38,8 @@ const AdminLogin = () => {
 			setLoadingLogin(false);
 			return;
 		}
+		// Update user status to Active in users table
+		await supabase.from('users').update({ status: 'Active' }).eq('email', email);
 
 		// Password validation removed
 

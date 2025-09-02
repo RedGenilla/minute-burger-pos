@@ -19,7 +19,7 @@ export default function AdminBoard() {
 		email: "",
 		password: "",
 		role: "Staff",
-		status: "Active",
+		status: "Inactive",
 	});
 	// Edit modal state
 	const [showEditModal, setShowEditModal] = useState(false);
@@ -40,8 +40,22 @@ export default function AdminBoard() {
 			if (!error) setUsers(data || []);
 			setLoading(false);
 		};
-		fetchUsers();
-	}, [showForm, filter]);
+			fetchUsers();
+
+			// Supabase real-time subscription for users table
+			const subscription = supabase
+				.channel('users-status')
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+					// Refetch users when any change happens
+					fetchUsers();
+				})
+				.subscribe();
+
+			// Cleanup subscription on unmount
+			return () => {
+				supabase.removeChannel(subscription);
+			};
+	}, [showForm, filter, navigate]);
 	// ...existing code...
 
 	// Add user to Supabase
@@ -56,7 +70,7 @@ export default function AdminBoard() {
 		const { data, error } = await supabase.from("users").insert([userToInsert]);
 		if (!error) {
 			setShowForm(false);
-			setNewUser({ username: "", email: "", password: "", role: "Staff", status: "Active" });
+			setNewUser({ username: "", email: "", password: "", role: "Staff", status: "Inactive" });
 			// Manually fetch users after adding
 			const { data: usersData } = await supabase.from("users").select();
 			setUsers(usersData || []);
@@ -239,11 +253,7 @@ export default function AdminBoard() {
 								 onChange={handleChange}
 								 required
 							 />
-							 <select name="status" value={newUser.status} onChange={handleChange}>
-								 <option>Active</option>
-								 <option>Inactive</option>
-								 <option>Banned</option>
-							 </select>
+							{/* Status dropdown removed. Status will default to 'Inactive' when creating a new user. */}
 							 <select name="role" value={newUser.role} onChange={handleChange}>
 								 <option>Staff</option>
 							 </select>
@@ -287,11 +297,18 @@ export default function AdminBoard() {
 								value={editUser.password}
 								onChange={handleEditChange}
 							/>
-							<select name="status" value={editUser.status} onChange={handleEditChange}>
-								<option>Active</option>
-								<option>Inactive</option>
-								<option>Banned</option>
-							</select>
+											<div style={{marginBottom: '10px'}}>
+												<label>Status: </label>
+												<span className={`admin-status ${editUser.status.toLowerCase()}`}>{editUser.status}</span>
+												<button
+													type="button"
+													className={editUser.status === 'Banned' ? 'admin-btn-unban' : 'admin-btn-ban'}
+													style={{marginLeft: '10px'}}
+													onClick={() => setEditUser({ ...editUser, status: editUser.status === 'Banned' ? 'Active' : 'Banned' })}
+												>
+													{editUser.status === 'Banned' ? 'Unban' : 'Ban'}
+												</button>
+											</div>
 							<div className="admin-form-actions">
 								<button type="submit" className="admin-btn-save" disabled={editLoading}>Update</button>
 								<button type="button" className="admin-btn-cancel" onClick={() => setShowEditModal(false)}>

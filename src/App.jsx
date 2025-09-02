@@ -5,6 +5,7 @@ import Signin from "./customer-login/Signin";
 
 import { UserAuth } from "./authenticator/AuthContext";
 import Dashboard from "./staff-page/Dashboard";
+import StaffLogin from "./staff-login/staff-login";
 
 function App() {
   const { user } = UserAuth();
@@ -13,7 +14,7 @@ function App() {
 
   return (
     <>
-      <Signin />
+      <StaffLogin />
     </>
   );
 }

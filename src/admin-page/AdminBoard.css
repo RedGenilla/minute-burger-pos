@@ -1,3 +1,30 @@
+/* Ban/Unban button styles */
+.admin-btn-ban {
+	background-color: #e53935;
+	color: #fff;
+	border: none;
+	padding: 6px 16px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-weight: bold;
+	transition: background 0.2s;
+}
+.admin-btn-ban:hover {
+	background-color: #b71c1c;
+}
+.admin-btn-unban {
+	background-color: #43a047;
+	color: #fff;
+	border: none;
+	padding: 6px 16px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-weight: bold;
+	transition: background 0.2s;
+}
+.admin-btn-unban:hover {
+	background-color: #2e7d32;
+}
 /* Log out button at top right of admin-board-page */
 .admin-board-page {
 	position: relative;
@@ -195,7 +222,7 @@
 	background: #d1fae5;
 	color: #065f46;
 }
-.admin-status.inactive {
+ .admin-status.inactive {
 	background: #fef3c7;
 	color: #92400e;
 }
