@@ -21,7 +21,7 @@
 	cursor: pointer;
 	font-weight: bold;
 	transition: background 0.2s;
-}
+} 
 .admin-btn-unban:hover {
 	background-color: #2e7d32;
 }
@@ -161,15 +161,17 @@
 		border-bottom: 1px solid #eee;
 	}
 }
+/* Center the header logo and title */
 .admin-header {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 16px;
 	margin-bottom: 32px;
 }
 /* Responsive styles for header are added in media queries above */
 .admin-logo {
-	width: 60px;
+	width: 70px;
 	height: 60px;
 }
 .admin-title {

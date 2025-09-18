@@ -1,0 +1,590 @@
+/* Go back to Dashboard button styles (match Logout button) */
+.go-back-dashboard-btn {
+	position: absolute;
+	top: 18px;
+	left: 18px;
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	background: #fff;
+	color: #222;
+	border: 1px solid #e0e0e0;
+	border-radius: 18px;
+	padding: 6px 14px 6px 10px;
+	font-size: 0.8rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background 0.2s, box-shadow 0.2s;
+	gap: 7px;
+}
+.go-back-dashboard-btn:hover {
+	background: #7eee9e;
+	box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+.go-back-dashboard-icon {
+	width: 15px;
+	height: 15px;
+	margin-right: 4px;
+}
+.sidebar-item span {
+	font-weight: bold;
+}
+/* Logout button styling (matches admin-page) */
+.logout-btn {
+	position: absolute;
+	top: 18px;
+	right: 18px;
+	z-index: 10;
+	background-color: #e53e3e;
+	color: #fff;
+	border: none;
+	padding: 6px 14px 6px 10px;
+	border-radius: 18px;
+	font-size: 0.8rem;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+	transition: background 0.2s, box-shadow 0.2s;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+}
+.logout-btn img {
+	width: 15px;
+	height: 15px;
+	margin-right: 4px;
+}
+.logout-btn:hover {
+	background: #b71c1c;
+	box-shadow: 0 4px 16px rgba(231,62,62,0.18);
+}
+.modal-content form {
+	display: flex;
+	flex-direction: column;
+	gap: 15px;
+}
+/* Enhanced Modal Styles for Add/Edit Item */
+.modal {
+	position: fixed;
+	z-index: 999;
+	left: 0;
+	top: 0;
+	width: 100vw;
+	height: 100vh;
+	overflow: auto;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+}
+.modal-content {
+	background-color: #fff8e1;
+	margin: 0 auto;
+	padding: 20px 24px;
+	border: 2px solid orange;
+	width: 300px;
+	max-width: 95vw;
+	border-radius: 20px;
+	box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+	animation: slideDown 0.3s ease-out;
+	display: flex;
+	flex-direction: column;
+}
+.modal-header {
+	font-size: 20px;
+	font-weight: bold;
+	color: black;
+	margin-bottom: 15px;
+	text-align: center;
+}
+
+.modal-content input,
+.modal-content select {
+	width: 70%;
+	padding: 8px 10px;
+	border: 1px solid black;
+	border-radius: 10px;
+	margin-bottom: 10px;
+	font-size: 14px;
+    text-align: left;
+    display: flex;
+}
+.modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+}
+.save-btn {
+	background-color: orange;
+	color: black;
+	border: none;
+	border-radius: 15px;
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: bold;
+}
+.save-btn:hover {
+	opacity: 0.8;
+}
+.cancel-btn {
+	background-color: gray;
+	color: white;
+	border: none;
+	border-radius: 15px;
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 14px;
+}
+.cancel-btn:hover {
+	opacity: 0.8;
+}
+@keyframes slideDown {
+	from {
+		transform: translateY(-50px);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+/* Page background */
+body {
+	font-family: Arial, sans-serif;
+	background-color: #fddf49; /* Minute Burger yellow */
+	margin: 0;
+	padding: 0;
+	text-align: center;
+}
+
+/* Page Title */
+.ingredients-dashboard h1 {
+	margin: 20px 0;
+	font-size: 2rem;
+	font-weight: bold;
+	color: #eab308;
+}
+
+/* Search & Filter section */
+.filters {
+	display: flex;
+	justify-content: center;
+	gap: 10px;
+	margin: 15px 0;
+}
+.filters input,
+.filters select {
+	padding: 8px 12px;
+	border-radius: 15px;
+	border: 1px solid black;
+	font-size: 14px;
+}
+.new-btn {
+	background-color: black;
+	color: white;
+	border: none;
+	border-radius: 20px;
+	padding: 8px 15px;
+	cursor: pointer;
+	font-size: 14px;
+}
+.new-btn:hover {
+	opacity: 0.8;
+}
+
+/* Table styling */
+.table-container {
+	margin: 0 auto;
+	width: 90%;
+	border-collapse: collapse;
+}
+.table-container th,
+.table-container td {
+	border: 1px solid black;
+	padding: 10px;
+	text-align: center;
+	font-size: 14px;
+}
+.table-container th {
+	background-color: #f78b1f; /* Orange */
+	color: black;
+	font-weight: bold;
+}
+
+/* Status badges */
+.status {
+	display: inline-block;
+	padding: 5px 12px;
+	border-radius: 15px;
+	font-size: 13px;
+	font-weight: bold;
+	color: white;
+}
+.status.active {
+	background-color: limegreen;
+	color: black;
+}
+.status.inactive {
+	background-color: gray;
+}
+.status.banned {
+	background-color: red;
+}
+
+/* Action buttons */
+.action-btn {
+	cursor: pointer;
+	font-size: 16px;
+	padding: 5px;
+	border: none;
+	background: none;
+}
+.action-btn.edit {
+	color: black;
+}
+.action-btn.delete {
+	color: red;
+}
+
+/* Bottom Navigation */
+.bottom-nav {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	background: orange;
+	display: flex;
+	justify-content: space-around;
+	align-items: center;
+	padding: 10px 0;
+	border-radius: 15px 15px 0 0;
+	z-index: 100;
+}
+.nav-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: black;
+	font-size: 13px;
+	font-weight: bold;
+}
+.nav-item i {
+	font-size: 24px;
+	margin-bottom: 5px;
+}
+
+/* Responsive styles for table and dashboard */
+@media (max-width: 900px) {
+	.ingredients-dashboard {
+		max-width: 100%;
+		margin: 24px 8px;
+		padding: 20px;
+	}
+	.table-container {
+		width: 100%;
+	}
+}
+@media (max-width: 600px) {
+	.ingredients-dashboard {
+		padding: 12px;
+		border-radius: 8px;
+	}
+	.table-container th, .table-container td {
+		padding: 8px 4px;
+		font-size: 0.95em;
+	}
+	.table-container {
+		display: block;
+		width: 100%;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+	.table-container table {
+		width: 100%;
+		min-width: 500px;
+	}
+}
+@media (max-width: 400px) {
+	.ingredients-dashboard {
+		padding: 6px;
+		border-radius: 6px;
+	}
+	.table-container th, .table-container td {
+		padding: 4px 2px;
+		font-size: 0.85em;
+	}
+}
+@media (max-width: 350px) {
+	.table-container th, .table-container td {
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+		text-align: left;
+	}
+	.table-container tr {
+		display: block;
+		margin-bottom: 8px;
+		border-bottom: 1px solid #eee;
+	}
+}
+/* Ingredients Dashboard Table and Modal Styles (AdminBoard style) */
+.ingredients-dashboard {
+	max-width: 900px;
+	margin: 40px auto;
+	background: #fff;
+	border-radius: 12px;
+	box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+	padding: 32px;
+	position: relative;
+}
+.ingredients-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-bottom: 24px;
+}
+.ingredients-table th, .ingredients-table td {
+	padding: 12px 8px;
+	border-bottom: 1px solid #eee;
+	text-align: left;
+}
+.item-status {
+	padding: 4px 12px;
+	border-radius: 12px;
+	font-size: 0.95em;
+	font-weight: 500;
+}
+.item-status.active {
+	background: #d1fae5;
+	color: #065f46;
+}
+.item-status.inactive {
+	background: #fef3c7;
+	color: #92400e;
+}
+.item-edit-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 1.2em;
+	margin-right: 8px;
+	color: #1976d2;
+	transition: color 0.2s;
+}
+.item-edit-btn:hover {
+	color: #1565c0;
+}
+.item-modal {
+	position: fixed;
+	top: 0; left: 0; right: 0; bottom: 0;
+	background: rgba(0,0,0,0.25);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+.item-modal-content {
+	background: #fff;
+	padding: 32px 24px;
+	border-radius: 10px;
+	min-width: 320px;
+	box-shadow: 0 2px 16px rgba(0,0,0,0.12);
+}
+.item-modal-content input,
+.item-modal-content input,
+.item-modal-content select {
+	width: 80%;
+	max-width: 320px;
+	margin-bottom: 16px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid #ddd;
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+    justify-content: flex-start;
+
+}
+.item-modal-content button {
+	padding: 8px 18px;
+	border-radius: 6px;
+	border: none;
+	font-weight: 600;
+	cursor: pointer;
+	background: #e88412;
+	color: #fff;
+	margin-right: 8px;
+	transition: background 0.2s;
+}
+.item-modal-content button:last-child {
+	background: #ddd;
+	color: #333;
+}
+.item-modal-content button:hover {
+	background: #c08401;
+}
+@media (max-width: 900px) {
+	.ingredients-dashboard {
+		max-width: 100%;
+		margin: 24px 8px;
+		padding: 20px;
+	}
+}
+@media (max-width: 600px) {
+	.ingredients-dashboard {
+		padding: 12px;
+		border-radius: 8px;
+	}
+	.ingredients-table th, .ingredients-table td {
+		padding: 8px 4px;
+		font-size: 0.95em;
+	}
+	.item-modal-content {
+		min-width: 90vw;
+		padding: 18px 8px;
+	}
+	.item-modal-content input,
+	.item-modal-content select {
+		padding: 6px 6px;
+		font-size: 1em;
+	}
+	.item-modal-content button {
+		padding: 8px 12px;
+		font-size: 0.95em;
+	}
+	.ingredients-table {
+		display: block;
+		width: 100%;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+	.ingredients-table table {
+		width: 100%;
+		min-width: 500px;
+	}
+}
+@media (max-width: 400px) {
+	.ingredients-dashboard {
+		padding: 6px;
+		border-radius: 6px;
+	}
+	.ingredients-table th, .ingredients-table td {
+		padding: 4px 2px;
+		font-size: 0.85em;
+	}
+	.item-modal-content button {
+		padding: 6px 8px;
+		font-size: 0.85em;
+	}
+	.item-modal-content {
+		min-width: 98vw;
+		padding: 8px 2px;
+	}
+}
+@media (max-width: 350px) {
+	.ingredients-table th, .ingredients-table td {
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+		text-align: left;
+	}
+	.ingredients-table tr {
+		display: block;
+		margin-bottom: 8px;
+		border-bottom: 1px solid #eee;
+	}
+}
+/* Ingredients Dashboard Table Styles */
+.ingredients-dashboard {
+	padding: 32px;
+	background: #f8f8f8;
+	min-height: 100vh;
+}
+
+.ingredients-table {
+	width: 100%;
+	border-collapse: collapse;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.ingredients-table th, .ingredients-table td {
+	border: 1px solid #e0e0e0;
+	padding: 12px 16px;
+	text-align: left;
+}
+.ingredients-table th {
+	background: #f0f0f0;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+}
+.ingredients-table tr:nth-child(even) {
+	background: #fafafa;
+}
+.item-status.active {
+	color: #2e7d32;
+	font-weight: bold;
+}
+.item-status.inactive {
+	color: #c62828;
+	font-weight: bold;
+}
+.item-edit-btn {
+	background: #1976d2;
+	color: #fff;
+	border: none;
+	border-radius: 4px;
+	padding: 6px 12px;
+	cursor: pointer;
+	font-size: 16px;
+	transition: background 0.2s;
+}
+.item-edit-btn:hover {
+	background: #1565c0;
+}
+/* Modal Styles */
+.item-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0,0,0,0.3);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+.item-modal-content {
+	background: #fff;
+	padding: 30px;
+	border-radius: 8px;
+	min-width: 320px;
+	box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.item-modal-content h2 {
+	margin-top: 0;
+	margin-bottom: 18px;
+}
+.item-modal-content input,
+.item-modal-content select {
+	width: 100%;
+	margin-bottom: 12px;
+	padding: 8px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	font-size: 15px;
+}
+.item-modal-content button {
+	padding: 8px 16px;
+	border: none;
+	border-radius: 4px;
+	background: #1976d2;
+	color: #fff;
+	font-size: 15px;
+	cursor: pointer;
+	margin-right: 8px;
+	transition: background 0.2s;
+}
+.item-modal-content button:hover {
+	background: #1565c0;
+}
+

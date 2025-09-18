@@ -1,0 +1,255 @@
+/* Menu Management title below header */
+.menu-management-title {
+	text-align: center;
+	font-family: 'Fredoka One', cursive;
+	font-size: 1.6rem;
+	color: #5A2C0E;
+	margin: 0 0 18px 0;
+	font-weight: bold;
+}
+/* Sidebar close button for sidebar.png icon */
+.sidebar-close-btn {
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	width: 32px;
+	height: 32px;
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	z-index: 2;
+}
+.sidebar-close-icon {
+	width: 32px;
+	height: 32px;
+	display: block;
+}
+.price-qty-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 6px;
+}
+body {
+	margin: 0;
+	background-color: #fcd949; /* Minute Burger yellow */
+	font-family: 'Fredoka One', Arial, sans-serif;
+}
+
+
+/* Centered header copied from general-login */
+.menu-header {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	font-family: 'Fredoka One', cursive;
+	font-weight: bold;
+	font-size: 2.1rem;
+	color: #5A2C0E;
+	background-color: #fcd949;
+	padding: 18px 0 10px 0;
+	text-align: center;
+}
+.menu-header-logo {
+	width: 50px;
+	height: 40px;
+}
+
+.top-controls {
+	display: flex;
+	align-items: center;
+	padding: 0 15px;
+	gap: 10px;
+}
+
+@media (min-width: 900px) {
+	.top-controls {
+		justify-content: center;
+		max-width: 700px;
+		margin: 0 auto;
+		padding: 0;
+	}
+}
+
+.menu-icon {
+	font-size: 1.8rem;
+	cursor: pointer;
+}
+
+.search-box {
+	flex: .75;
+	border: 2px solid #000;
+	border-radius: 25px;
+	padding: 6px 12px;
+	font-size: 1rem;
+	outline: none;
+	max-width: 500px;
+}
+
+.category-bar {
+	display: flex;
+	overflow-x: auto;
+	padding: 10px 15px;
+	gap: 8px;
+}
+
+@media (min-width: 900px) {
+	.category-bar {
+		justify-content: center;
+		max-width: 700px;
+		margin: 0 auto;
+		padding-left: 0;
+		padding-right: 0;
+	}
+}
+
+.category-bar button {
+	background-color: #fff5a5;
+	border: 2px solid #000;
+	border-radius: 20px;
+	padding: 6px 14px;
+	font-weight: bold;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background 0.2s;
+}
+
+.category-bar button:hover {
+	background-color: #ffda42;
+}
+
+.item-grid-wrapper {
+	width: 100%;
+}
+.item-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 15px;
+	padding: 15px;
+}
+
+@media (min-width: 900px) {
+	.item-grid-wrapper {
+		max-width: 700px;
+		margin: 0 auto;
+	}
+	.item-grid {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+
+
+.item-card {
+	background-color: #fff;
+	border: 2px solid #000;
+	border-radius: 5px;
+	text-align: center;
+	padding: 10px;
+}
+
+.item-card img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 4px;
+}
+
+.item-name {
+	margin: 6px 0 4px;
+	font-weight: bold;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.item-price {
+	font-weight: bold;
+	margin-bottom: 6px;
+}
+
+.qty-controls {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 6px;
+}
+
+.qty-controls button {
+	background-color: #fcd949;
+	border: 2px solid #000;
+	border-radius: 50%;
+	width: 28px;
+	height: 28px;
+	font-size: 1.2rem;
+	font-weight: bold;
+	cursor: pointer;
+}
+
+.check-cart {
+	display: block;
+	width: 90%;
+	margin: 20px auto;
+	background-color: #fcd949;
+	border: 2px solid #000;
+	border-radius: 25px;
+	padding: 10px 0;
+	font-weight: bold;
+	text-align: center;
+	cursor: pointer;
+	transition: background 0.2s;
+}
+
+.check-cart:hover {
+	background-color: #ffda42;
+}
+
+
+/* Sidebar styles (copied from ingredients-board for consistency) */
+.sidebar-nav {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 100vh;
+	width: 180px;
+	background-color: #f89c00;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding-top: 40px;
+	box-shadow: 2px 0 8px rgba(0,0,0,0.07);
+	z-index: 100;
+}
+.sidebar-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: #000;
+	text-decoration: none;
+	margin-bottom: 32px;
+	font-size: 1.05em;
+	transition: background 0.2s, color 0.2s;
+	width: 100%;
+	padding: 12px 0;
+	border-radius: 12px;
+}
+.sidebar-item img {
+	height: 36px;
+	margin-bottom: 6px;
+}
+.sidebar-item:hover {
+	background: #ffb02e;
+	color: #333;
+}
+
+@media (max-width: 600px) {
+	.item-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.item-card {
+		min-width: 0;
+		box-sizing: border-box;
+	}
+}

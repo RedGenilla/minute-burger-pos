@@ -1,21 +1,26 @@
 import { createBrowserRouter } from "react-router-dom";
 import App from "./App";
+import IngredientsDashboard from "./ingredients-board/ingredients";
 import Signup from "./customer-login/Signup";
 import Signin from "./customer-login/Signin";
 import Dashboard from "./staff-page/Dashboard";
-import StaffLogin from "./staff-login/staff-login";
-import AdminLogin from "./admin-login/admin-login";
+import GeneralLogin from "./general-login/general-login";
+// import AdminLogin from "./admin-login/admin-login";
 import PrivateRoute from "./customer-login/PrivateRoute";
 import AdminBoard from "./admin-page/AdminBoard";
+import MenuManagement from "./admin-page/MenuManagement";
+import MenuList from "./menu-list/MenuList";
+
 
 export const router = createBrowserRouter([
   { path: "/", element: <App /> },
   { path: "/signin", element: <Signin /> },
   { path: "/signup", element: <Signup /> },
-  // Removed dashboard route for customers. Staff dashboard is at /staff.
-  { path: "/staff", element: <StaffLogin /> },
+  // Use GeneralLogin for both staff and admin accounts
+  { path: "/login", element: <GeneralLogin /> },
   { path: "/staff/dashboard", element: <Dashboard /> },
-  { path: "/admin", element: <AdminLogin /> },
-  { path: "/admin-login", element: <AdminLogin /> },
   { path: "/admin-user-management", element: <AdminBoard /> },
+    { path: "/admin/menu-management", element: <MenuManagement /> },
+  { path: "/ingredients-dashboard", element: <IngredientsDashboard /> },
+  { path: "/menu-list", element: <MenuList /> },
 ]);

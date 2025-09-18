@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
 
-.staff-bg {
+.general-bg {
   margin: 0;
   background-color: #FFD94A;
   display: flex;
@@ -10,7 +10,7 @@
   font-family: Arial, sans-serif;
 }
 
-.staff-header {
+.general-header {
   text-align: center;
   font-family: 'Fredoka One', cursive;
   font-weight: bold;
@@ -22,12 +22,12 @@
   gap: 10px;
   margin-bottom: 10px;
 }
-.staff-header img {
+.general-header img {
   width: 50px;
   height: 40px;
 }
 
-.staff-poster {
+.general-poster {
   width: 375px;
   height: 750px;
   background-color: #FFD94A;
@@ -119,33 +119,6 @@
   width: 90%;
 }
 
-.btn-role {
-  display: block;
-  width: 85%;
-  margin: 10px auto;
-  padding: 12px;
-  border: none;
-  border-radius: 25px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.btn-role.admin {
-  background: #f7931e;
-  color: #000;
-}
-.btn-role.admin:hover {
-  background: #e67e00;
-}
-.btn-role.staff {
-  background: #ffd699;
-  color: #000;
-}
-.btn-role.staff:hover {
-  background: #ffbf66;
-}
-
 .terms {
   font-size: 12px;
   text-align: center;
@@ -154,11 +127,11 @@
   color: #000;
 }
 
-.staff-footer {
+.general-footer {
   text-align: center;
   width: 100%;
 }
-.staff-footer hr {
+.general-footer hr {
   border: none;
   border-top: 1px solid #000;
   margin-bottom: 8px;

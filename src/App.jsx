@@ -5,16 +5,19 @@ import Signin from "./customer-login/Signin";
 
 import { UserAuth } from "./authenticator/AuthContext";
 import Dashboard from "./staff-page/Dashboard";
-import StaffLogin from "./staff-login/staff-login";
+import GeneralLogin from "./general-login/general-login";
+// ...existing code...
 
 function App() {
-  const { user } = UserAuth();
+  const auth = UserAuth() || {};
+  const { session } = auth;
+  const user = session?.user;
 
   // console.log(user);
 
   return (
     <>
-      <StaffLogin />
+      <GeneralLogin />
     </>
   );
 }

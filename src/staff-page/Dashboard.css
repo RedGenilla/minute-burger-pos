@@ -1,1 +1,298 @@
-/* Moved from routes/Dashboard.css */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+.dashboard-bg {
+	margin: 0;
+	background-color: #FFD94A;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	min-height: 100vh;
+	font-family: Arial, sans-serif;
+}
+
+.dashboard-header {
+	text-align: center;
+	font-family: 'Fredoka One', cursive;
+	font-weight: bold;
+	font-size: 35px;
+	color: #5A2C0E;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.dashboard-header img {
+	width: 50px;
+	height: 40px;
+}
+
+
+.dashboard-container {
+	max-width: 375px;
+	width: 80%;
+	margin: 30px auto;
+	padding: 25px 50px;
+	border-radius: 12px;
+	text-align: center;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+	background-color: #fff;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+}
+
+.dashboard-title {
+	font-size: 18px;
+	font-weight: bold;
+	margin-bottom: 20px;
+	color: #000;
+	text-align: left;
+}
+
+
+.dashboard-btn {
+		display: block;
+		width: 80%;
+		margin: 15px auto;
+		padding: 16px;
+		font-size: 16px;
+		font-weight: bold;
+		background-color: #f78b1f; /* Orange */
+		color: black;
+		border: none;
+		border-radius: 12px;
+		cursor: pointer;
+		transition: transform 0.2s, opacity 0.2s;
+}
+.dashboard-btn:hover {
+	transform: scale(1.05);
+	opacity: 0.9;
+}
+
+.dashboard-divider {
+	margin: 20px auto;
+	border: none;
+	border-top: 1px solid #000;
+	width: 90%;
+}
+
+.dashboard-footer {
+	text-align: center;
+	width: 100%;
+}
+.dashboard-footer hr {
+	border: none;
+	border-top: 1px solid #000;
+	margin-bottom: 8px;
+	width: 90%;
+}
+.footer-logo {
+	width: 80px;
+	height: auto;
+}
+
+.dashboard-terms {
+	font-size: 12px;
+	text-align: center;
+	margin-top: auto;
+	font-weight: bold;
+	color: #000;
+}
+
+@media (max-width: 600px) {
+	.dashboard-container {
+		max-width: 98vw;
+		width: 98vw;
+		padding: 18px 6px;
+		border-radius: 10px;
+	}
+	.dashboard-header {
+		font-size: 28px;
+		gap: 6px;
+	}
+	.dashboard-header img {
+		width: 36px;
+		height: 28px;
+	}
+	.dashboard-btn {
+		width: 98%;
+		font-size: 15px;
+		padding: 12px;
+		margin: 10px auto;
+	}
+	.dashboard-title {
+		font-size: 16px;
+		margin-bottom: 18px;
+	}
+}
+
+@media (max-width: 400px) {
+	.dashboard-container {
+		padding: 8px 2px;
+		border-radius: 7px;
+	}
+	.dashboard-header {
+		font-size: 20px;
+		gap: 3px;
+	}
+	.dashboard-header img {
+		width: 24px;
+		height: 18px;
+	}
+	.dashboard-btn {
+		font-size: 13px;
+		padding: 8px;
+	}
+	.dashboard-title {
+		font-size: 13px;
+		margin-bottom: 12px;
+	}
+	.dashboard-footer hr {
+		width: 90%;
+	}
+}
+/* Responsive styles */
+@media (max-width: 600px) {
+	.dashboard-container {
+		max-width: 98vw;
+		width: 98vw;
+		padding: 18px 6px;
+		border-radius: 10px;
+	}
+	.dashboard-header {
+		gap: 6px;
+        align-items: center;
+	}
+	.dashboard-header img {
+		width: 36px;
+		height: 28px;
+	}
+	.dashboard-btn {
+		width: 98%;
+		font-size: 15px;
+		padding: 12px;
+		margin: 10px auto;
+	/* Main container */
+	.dashboard-container {
+		max-width: 400px;
+		width: 100%;
+		margin: 30px auto;
+		padding: 30px 20px;
+		border-radius: 12px;
+		text-align: center;
+		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+		background-color: #fff;
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.dashboard-header {
+		text-align: center;
+		font-family: 'Fredoka One', cursive;
+		font-weight: bold;
+		font-size: 35px;
+		color: #5A2C0E;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		margin-bottom: 10px;
+	}
+	.dashboard-header img {
+		width: 50px;
+		height: 40px;
+	}
+
+		.dashboard-header {
+			max-width: 98vw;
+			gap: 10px;
+			padding: 12px 0 8px 0;
+			font-size: 0.9em;
+		}
+		.dashboard-header span {
+			font-size: 1.1em;
+			letter-spacing: 1px;
+		}
+		.dashboard-header img {
+			width: 28px;
+			height: 20px;
+		}
+}
+@media (max-width: 400px) {
+		.dashboard-header {
+			max-width: 98vw;
+			gap: 4px;
+			padding: 6px 0 4px 0;
+			font-size: 0.7em;
+		}
+		.dashboard-header span {
+			font-size: 0.9em;
+			letter-spacing: 0.5px;
+		}
+		.dashboard-header img {
+			width: 18px;
+			height: 12px;
+		}
+}
+}
+
+/* Welcome text */
+.dashboard-container h2 {
+	font-size: 20px;
+	font-weight: bold;
+	margin-bottom: 25px;
+}
+
+/* Menu buttons */
+.dashboard-btn {
+	display: block;
+	width: 80%;
+	margin: 15px auto;
+	padding: 16px;
+	font-size: 16px;
+	font-weight: bold;
+	background-color: #f78b1f; /* Orange */
+	color: black;
+	border: none;
+	border-radius: 12px;
+	cursor: pointer;
+	transition: transform 0.2s, opacity 0.2s;
+}
+
+/* Hover effect */
+.dashboard-btn:hover {
+	transform: scale(1.05);
+	opacity: 0.9;
+}
+
+/* Logout link */
+.logout-link {
+	display: block;
+	margin-top: 20px;
+	font-size: 14px;
+	font-weight: bold;
+	color: black;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.logout-link:hover {
+	text-decoration: underline;
+}
+
+.dashboard-footer {
+  text-align: center;
+  width: 100%;
+}
+.dashboard-footer hr {
+  border: none;
+  border-top: 1px solid #000;
+  margin-bottom: 8px;
+  width: 28%;
+}
+.footer-logo {
+  width: 80px;
+  height: auto;
+}

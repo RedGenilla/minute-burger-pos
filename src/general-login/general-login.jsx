@@ -1,62 +1,90 @@
 import React, { useState } from "react";
-import { supabase } from '../supabaseClient';
+import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
-import "./staff-login.css";
+import "./general-login.css";
 import minuteLogo from "../assets/minute.png";
+import { UserAuth } from "../authenticator/AuthContext";
 
-const StaffLogin = () => {
+
+const GeneralLogin = () => {
 	const navigate = useNavigate();
 	const [loading, setLoading] = useState(false);
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
 
-	const handleAdminClick = () => {
-		setLoading(true);
-		setTimeout(() => {
-			navigate('/admin');
-		}, 1000);
-	};
-
-	const handleStaffLogin = async (e) => {
+	const handleLogin = async (e) => {
 		e.preventDefault();
 		setLoading(true);
 		setError("");
-		const { data, error: signInError } = await supabase.auth.signInWithPassword({
+		// 1. Authenticate user
+		const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
 			email: username,
 			password: password
 		});
-		if (signInError) {
+		if (signInError || !signInData?.user) {
 			setError("Invalid credentials. Please try again.");
 			setLoading(false);
 			return;
 		}
-		// Check user status in users table
-		const { data: userData, error: userFetchError } = await supabase
+		// 2. Check both tables for role and status
+		let role = null;
+		let banned = false;
+		let foundTable = null;
+		// Try users table first
+		const { data: userData } = await supabase
 			.from('users')
-			.select('status')
+			.select('status, role')
 			.eq('email', username)
 			.single();
-		if (userFetchError || !userData) {
-			setError('Unable to verify account status.');
+		console.log('User table result:', userData);
+		if (userData) {
+			role = userData.role;
+			banned = userData.status === 'Banned';
+			foundTable = 'users';
+		}
+		// If not found or no role, try profiles table
+		else if (!role) {
+			const { data: profileData } = await supabase
+				.from('profiles')
+				.select('role')
+				.eq('email', username)
+				.single();
+			console.log('Profiles table result:', profileData);
+			if (profileData) {
+				role = profileData.role;
+				banned = profileData.status === 'Banned';
+				foundTable = 'profiles';
+			}
+		}
+		if (!role) {
+			setError('Unable to verify account role.');
 			setLoading(false);
 			return;
 		}
-		if (userData.status === 'Banned') {
+		if (banned) {
 			setError('Account Banned');
 			setLoading(false);
 			return;
 		}
-		// Update user status to Active in users table
-		await supabase.from('users').update({ status: 'Active' }).eq('email', username);
-		navigate('/staff/dashboard');
+		// 3. Update status to Active in the correct table
+		if (foundTable) {
+			await supabase.from(foundTable).update({ status: 'Active' }).eq('email', username);
+		}
+		// 4. Redirect based on role
+		if (role === 'Admin') {
+			navigate('/admin-user-management');
+		} else {
+			navigate('/staff/dashboard');
+		}
+		setLoading(false);
 	};
 
 	return (
-		<div className="staff-bg">
-			<div className="staff-poster">
+		<div className="general-bg">
+			<div className="general-poster">
 				{/* Header Logo and Title */}
-				<div className="staff-header">
+				<div className="general-header">
 					<span>MINUTE</span>
 					<img src={minuteLogo} alt="Minute Burger Logo" />
 					<span>BURGER</span>
@@ -64,8 +92,8 @@ const StaffLogin = () => {
 
 				{/* Login Container */}
 				<div className="login-container">
-					<h2 className="login-title">Staff Log in</h2>
-					<form className="login-form" onSubmit={handleStaffLogin}>
+					<h2 className="login-title">Log in</h2>
+					<form className="login-form" onSubmit={handleLogin}>
 						<div className="input-group">
 							<input
 								type="text"
@@ -91,14 +119,12 @@ const StaffLogin = () => {
 					</form>
 					{error && <div style={{color: 'red', textAlign: 'center', margin: '10px 0'}}>{error}</div>}
 					<hr className="divider" />
-					<button className="btn-role admin" onClick={handleAdminClick} disabled={loading}>Log in as Admin</button>
 					{loading && <div style={{textAlign: 'center', margin: '10px 0', fontWeight: 'bold'}}>Loading...</div>}
-					<button className="btn-role staff" disabled>Log in as Staff</button>
 					<p className="terms">Terms and Conditions</p>
 				</div>
 
 				{/* Footer */}
-				<div className="staff-footer">
+				<div className="general-footer">
 					<hr />
 					<img src={minuteLogo} alt="Minute Burger Footer Logo" className="footer-logo" />
 				</div>
@@ -107,4 +133,4 @@ const StaffLogin = () => {
 	);
 };
 
-export default StaffLogin;
+export default GeneralLogin;

@@ -1,0 +1,518 @@
+/* ===== Menu Item Card ===== */
+.menu-item {
+	display: flex;
+	align-items: flex-start;
+	background: #fff;
+	border: 2px solid #000;
+	border-radius: 14px;
+	padding: 14px 16px;
+	margin: 20px auto;
+	width: 90%;
+	max-width: 500px;
+	box-shadow: 0 3px 6px rgba(0,0,0,0.12);
+	font-family: 'Fredoka One', Arial, sans-serif;
+	position: relative;
+}
+
+/* Product image */
+.menu-item img {
+	width: 140px;
+	height: auto;
+	border-radius: 10px;
+	object-fit: cover;
+	margin-right: 16px;
+}
+
+/* Text section */
+.menu-item-details {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* Name & description */
+.menu-item-name {
+	font-size: 1.1rem;
+	font-weight: 700;
+	margin: 0;
+	text-align: left;
+	margin: 3px;
+}
+
+.menu-item-description {
+	font-size: 0.80rem;
+	color: #333;
+	line-height: 1.3;
+	margin: 0;
+	margin: 3px;
+	text-align: left;
+}
+
+/* Price */
+.menu-item-price {
+	font-size: 1.0rem;
+	font-weight: 700;
+	margin-top: 0;
+	text-align: left;
+	margin: 3px;
+}
+
+/* Active badge */
+.menu-item-status {
+	position: absolute;
+	top: 10px;
+	right: 16px;
+	margin-bottom: 200px;
+	color: #000;
+	font-weight: 700;
+	padding: 2px 12px;
+	border-radius: 20px;
+	font-size: 0.85rem;
+	background: #22c55e; /* default green */
+}
+
+.menu-item-status.inactive {
+	background: #e53935;
+	color: #fff;
+}
+
+/* Edit/Delete buttons */
+.menu-item-actions {
+	position: absolute;
+	bottom: 10px;
+	right: 14px;
+	display: flex;
+	gap: 10px;
+}
+
+.menu-item-actions button {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 1.2rem;
+	padding: 4px;
+	border-radius: 50%;
+	transition: background 0.2s;
+}
+
+.menu-item-actions button.edit:hover {
+	background: rgba(0,0,0,0.08);
+}
+
+.menu-item-actions button.delete {
+	color: #e53935;
+}
+
+.menu-item-actions button.delete:hover {
+	background: rgba(229,57,53,0.15);
+}
+/* ===== Overlay / Backdrop ===== */
+.addmenu-overlay {
+	position: fixed;
+	top: 0; left: 0;
+	width: 100%; height: 100%;
+	background: rgba(0,0,0,0.35); /* semi-transparent dark layer */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+/* ===== Modal Container ===== */
+.addmenu-modal {
+	background: #fff;
+	border-radius: 16px;
+	padding: 18px 12px;
+	width: 95%;
+	max-width: 320px;
+	box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+	font-family: 'Poppins', sans-serif;
+	text-align: center;
+	min-height: unset;
+}
+
+/* Title */
+.addmenu-modal h2 {
+	font-size: 1.4rem;
+	font-weight: 700;
+	margin-bottom: 20px;
+}
+
+/* ===== Upload Box ===== */
+.upload-box {
+	border: 2px solid #000;
+	border-radius: 16px;
+	padding: 16px 8px;
+	margin: 0 auto 12px;
+	width: 130px;
+	height: 60px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	cursor: pointer;
+	transition: background 0.2s;
+}
+.upload-box:hover {
+	background: #f5f5f5;
+}
+.upload-box img, .upload-box svg {
+	width: 70px;
+	height: 70px;
+	margin-bottom: 4px;
+}
+
+/* ===== Form Fields ===== */
+.addmenu-form label {
+	display: block;
+    grid-template-columns: 1fr 2fr;
+    align-items: center;
+    text-align: left;      /* ensures label text is left-aligned */
+	font-weight: 600;
+	
+	}
+
+	.addmenu-form .status-row {
+		display: flex;
+		align-items: center;
+		margin-bottom: 8px;
+}
+.addmenu-form input[type="text"],
+.addmenu-form input[type="email"],
+.addmenu-form input[type="password"],
+.addmenu-form input[type="number"],
+.addmenu-form textarea,
+.addmenu-form select {
+	width: 90%;
+	padding: 6px 8px;
+	border: 1px solid #ccc;
+	display: block;
+	border-radius: 8px;
+	font-size: 0.95rem;
+	outline: none;
+	margin-top: 4px;
+	margin-bottom: 11px;
+}
+
+.addmenu-form .description-label {
+	display: block;
+	font-weight: 600;
+	text-align: left;
+	margin: 14px 0 6px;
+}
+
+
+/* ===== Status Buttons ===== */
+.status-options {               /* line 101 */
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+	margin-bottom: 13px;
+    justify-content: flex-start;
+}
+
+.status-btn {
+	padding: 6px 16px;
+	border-radius: 20px;
+	font-weight: 600;
+	cursor: pointer;
+	border: 2px solid #000;
+	background: #fff;
+	transition: background 0.2s;
+}
+.status-btn.active {
+	background: #a7f3d0;  /* light green */
+}
+.status-btn.inactive {
+	background: #ef6c6c;
+}
+
+/* ===== Action Buttons ===== */
+.modal-actions {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 24px;
+}
+.btn-cancel,
+.btn-confirm {
+	padding: 8px 22px;
+	font-weight: 700;
+	border: none;
+	border-radius: 20px;
+	font-size: 1rem;
+	cursor: pointer;
+	transition: opacity 0.2s;
+}
+.btn-cancel {
+	background: #e53935;
+	color: #fff;
+}
+.btn-cancel:hover {
+	opacity: 0.85;
+}
+.btn-confirm {
+	background: #22c55e;
+	color: #fff;
+}
+.btn-confirm:hover {
+	opacity: 0.85;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+	.menu-item {
+		max-width: 98vw;
+		width: 98vw;
+		padding: 10px 4px;
+	}
+	.menu-item img {
+		width: 100px;
+		margin-right: 10px;
+	}
+	.menu-item-details {
+		gap: 4px;
+	}
+	.menu-item-name {
+		font-size: 1rem;
+	}
+	.menu-item-description {
+		font-size: 0.75rem;
+	}
+	.menu-item-price {
+		font-size: 0.95rem;
+	}
+	.controls {
+		flex-direction: column;
+		gap: 10px;
+		align-items: stretch;
+	}
+	.controls input[type="text"],
+	.controls select,
+	.add-menu {
+		width: 100%;
+		margin-left: 0;
+		margin-bottom: 8px;
+		box-sizing: border-box;
+	}
+}
+
+@media (max-width: 600px) {
+	.menu-item {
+		flex-direction: row;
+		align-items: flex-start;
+		max-width: 99vw;
+		width: 99vw;
+		padding: 8px 2vw;
+	}
+	.menu-item img {
+		width: 120px;
+		max-width: 40vw;
+		margin: 0 16px 0 0;
+		height: auto;
+	}
+	.menu-item-details {
+		width: 100%;
+		align-items: flex-start;
+		text-align: left;
+	}
+	.menu-item-actions {
+		position: absolute;
+		bottom: 10px;
+		right: 14px;
+		margin-top: 0;
+		justify-content: flex-end;
+	}
+	.menu-item-status {
+		position: absolute;
+		top: 10px;
+		right: 16px;
+		margin-bottom: 0;
+		display: inline-block;
+	}
+	.controls {
+		flex-direction: row;
+		gap: 10px;
+		align-items: center;
+		justify-content: center;
+	}
+	.controls input[type="text"],
+	.controls select,
+	.add-menu {
+		width: auto;
+		min-width: 120px;
+		margin-left: 0;
+		margin-bottom: 0;
+		box-sizing: border-box;
+	}
+}
+
+@media (max-width: 480px) {
+	.addmenu-modal {
+		padding: 24px 8px;
+		max-width: 99vw;
+	}
+	.upload-box {
+		width: 120px;
+		height: 120px;
+	}
+	.menu-item {
+		padding: 6px 1vw;
+	}
+	.menu-item img {
+		width: 90vw;
+		max-width: 160px;
+	}
+	.menu-item-details {
+		gap: 2px;
+	}
+	.menu-item-name {
+		font-size: 0.95rem;
+	}
+	.menu-item-description {
+		font-size: 0.7rem;
+	}
+	.menu-item-price {
+		font-size: 0.85rem;
+	}
+	.controls {
+		flex-direction: column;
+		gap: 6px;
+		align-items: stretch;
+	}
+	.controls input[type="text"],
+	.controls select,
+	.add-menu {
+		width: 100%;
+		margin-left: 0;
+		margin-bottom: 8px;
+		box-sizing: border-box;
+	}
+}
+/* === Sidebar Backdrop Overlay === */
+.sidebar-backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0,0,0,0.18);
+	z-index: 150;
+}
+/* === Global Styles === */
+body {
+	margin: 0;
+	background-color: #f7d64d;
+}
+
+.menu-management-page {
+	font-family: 'Fredoka One', Arial, sans-serif;
+}
+
+/* === Header === */
+.header {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 30px 20px 10px;
+}
+.header img.logo {
+	height: 80px;
+	margin-right: 20px;
+}
+.header h1 {
+	font-size: 2rem;
+}
+
+/* === Search & Filter === */
+.controls {
+	display: flex;
+	justify-content: center;
+	gap: 15px;
+	margin-top: 20px;
+}
+.controls input[type="text"],
+.controls select {
+	padding: 8px 12px;
+	border-radius: 20px;
+	border: 2px solid #000;
+	font-size: 1rem;
+	outline: none;
+}
+
+/* === Add Menu Button === */
+.add-menu {
+	background-color: #f89c00;
+	border: 2px solid #000;
+	border-radius: 20px;
+	padding: 8px 16px;
+	font-weight: bold;
+	margin-left: 20px;
+	cursor: pointer;
+	transition: background 0.2s;
+	margin-left: 60px;
+}
+.add-menu:hover {
+	background-color: #ffb02e;
+}
+
+/* === Sidebar Navigation === */
+.sidebar-nav {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 100vh;
+	width: 180px;
+	background-color: #f89c00;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding-top: 40px;
+	box-shadow: 2px 0 8px rgba(0,0,0,0.07);
+	z-index: 100;
+}
+.sidebar-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: #000;
+	text-decoration: none;
+	margin-bottom: 32px;
+	font-size: 1.05em;
+	transition: background 0.2s, color 0.2s;
+	width: 100%;
+	padding: 12px 0;
+	border-radius: 12px;
+}
+.sidebar-item img {
+	height: 36px;
+	margin-bottom: 6px;
+}
+.sidebar-item:hover {
+	background: #ffb02e;
+	color: #333;
+}
+.sidebar-item.logout {
+	color: #e53935;
+}
+/* Adjust main content to not be hidden behind sidebar */
+@media (max-width: 900px) {
+	.sidebar-nav {
+		width: 120px;
+		padding-top: 20px;
+	}
+	.header, .controls {
+		margin-left: 130px;
+	}
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+	.header h1 {
+		font-size: 1.6rem;
+	}
+	.controls {
+		flex-direction: column;
+		gap: 10px;
+	}
+}
