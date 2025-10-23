@@ -1,3 +1,316 @@
+.adduser-ingredients-table td.ingredient-action-cell,
+.adduser-ingredients-table th.ingredient-th-actions {
+	text-align: left;
+	width: 1%;
+	min-width: 36px;
+	max-width: 48px;
+	padding-left: 2px;
+	padding-right: 2px;
+	margin-right: 0;
+	white-space: nowrap;
+	box-sizing: border-box;
+}
+.ingredient-action-btn-group {
+	display: flex;
+	flex-direction: row;
+	gap: 2px;
+	align-items: center;
+	margin-left: -90px;
+}
+.ingredient-th-actions,
+.adduser-ingredients-table th:nth-child(2),
+.adduser-ingredients-table td:nth-child(2) {
+	padding-left: 0;
+	padding-right: 20px;
+}
+
+.ingredient-th-actions,
+.adduser-ingredients-table th:nth-child(3),
+.adduser-ingredients-table td:nth-child(3) {
+	text-align: left;
+	min-width: 150px;
+	padding-left: 0;
+	padding-right: 20px;
+}
+.ingredient-action-btn {
+	display: inline-block;
+	vertical-align: middle;
+}
+.ingredient-action-btn {
+	border-radius: 5px;
+	border: none;
+	margin-right: 4px;
+	margin-left: 0;
+	background: #e0e0e0;
+	color: #222;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.18s;
+}
+.ingredient-action-btn:last-child {
+	margin-right: 0;
+}
+.adduser-ingredient-edit.ingredient-action-btn {
+	background: #00c800;
+	color: #fff;
+}
+.adduser-ingredient-delete.ingredient-action-btn {
+	background: #ff8800;
+	color: #fff;
+}
+.ingredient-action-btn:hover {
+	filter: brightness(0.95);
+}
+.ingredient-th-name {
+	text-align: left;
+}
+.ingredient-th-amount {
+	text-align: left;
+}
+.ingredient-th-unit {
+	text-align: left;
+}
+/* Row for Category, Status, Price */
+.adduser-fields-row {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 8px;
+	margin-right: 35px;
+}
+.adduser-field-col {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+/* Hide the default file input for upload box */
+.upload-input-hidden {
+	display: none !important;
+	pointer-events: none;
+}
+/* ===== Add Menu Item Modal Overlay ===== */
+.modal-bg {
+	position: fixed;
+	top: 0;
+.adduser-ingredients-table {
+  border-collapse: separate;
+  border-spacing: 0 10px; /* Add vertical gap between rows */
+}
+.adduser-ingredients-table th,
+.adduser-ingredients-table td {
+  padding-left: 24px; /* Add horizontal gap between columns */
+  padding-right: 24px;
+}
+.adduser-ingredients-table th:first-child,
+.adduser-ingredients-table td:first-child {
+  padding-left: 16px;
+}
+.adduser-ingredients-table th:last-child,
+.adduser-ingredients-table td:last-child {
+  padding-right: 16px;
+}
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0,0,0,0.25);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+/* ===== Add Menu Item Modal Container ===== */
+.adduser-modal {
+	background: #fff;
+	border-radius: 16px;
+	padding: 18px 0px;
+	padding-right: 30px;
+	padding-left: 0px;
+	max-width: 900px;
+	width: 100%;
+	max-height: 90vh;
+	overflow-y: auto;
+	margin: 0 24px;
+	box-shadow: 0 4px 32px rgba(0,0,0,0.18);
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	align-items: center;
+	justify-content: center;
+}
+
+.adduser-header-bar {
+	margin-bottom: 12px;
+}
+
+.adduser-title-lg {
+	font-size: 22px;
+}
+
+.adduser-form {
+	width: 100%;
+}
+
+.adduser-modal-row {
+	display: flex;
+	flex-direction: row;
+	gap: 16px;
+	align-items: flex-start;
+	width: 100%;
+}
+.adduser-modal-left {
+	flex: 1;
+	min-width: 120px;
+}
+.adduser-modal-right {
+	flex: 2;
+	min-width: 180px;
+}
+.upload-box-modal {
+	margin-bottom: 10px;
+	margin-top: 0;
+	cursor: pointer;
+}
+.upload-input-hidden {
+	display: none;
+}
+.adduser-description {
+	width: 66.5%;
+	border-radius: 6px;
+	padding: 6px;
+	min-height: 74px;
+	font-size: 0.95rem;
+	resize: none;
+	margin-left: .9rem;
+}
+.adduser-ingredients-label {
+	margin-top: 10px;
+	font-weight: bold;
+	font-size: 15px;
+}
+.adduser-ingredients-box {
+	border: 1px solid #ccc;
+	border-radius: 8px;
+	padding: 8px;
+	margin-top: 6px;
+	margin-bottom: 10px;
+}
+.adduser-ingredients-table {
+	width: 100%;
+	margin-bottom: 6px;
+	font-size: 0.97rem;
+}
+.adduser-ingredients-empty {
+	text-align: center;
+	color: #aaa;
+}
+.adduser-ingredient-row {
+	background: #f7f7f7;
+	border-radius: 4px;
+}
+.adduser-ingredient-edit {
+	background: #00c800;
+	color: #fff;
+	margin-right: 4px;
+	border-radius: 6px;
+	border: none;
+	padding: 2px 8px;
+	font-size: 0.95rem;
+	cursor: pointer;
+}
+.adduser-ingredient-delete {
+	background: #ff8800;
+	color: #fff;
+	border-radius: 6px;
+	border: none;
+	padding: 2px 8px;
+	font-size: 0.95rem;
+	cursor: pointer;
+}
+.adduser-ingredient-add {
+	font-size: 18px;
+	border-radius: 50%;
+	width: 28px;
+	height: 28px;
+	background: #eee;
+	border: none;
+	cursor: pointer;
+}
+
+/* ===== Ingredient Modal Overlay ===== */
+.adduser-ingredient-modal-bg {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0,0,0,0.25);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+.adduser-ingredient-modal-form {
+	background: #fff;
+	border-radius: 24px;
+	padding: 48px;
+	min-width: 520px;
+	max-width: 600px;
+	width: 100%;
+	box-shadow: 0 4px 32px rgba(0,0,0,0.18);
+	display: flex;
+	flex-direction: column;
+	gap: 32px;
+}
+.adduser-ingredient-modal-row {
+	display: flex;
+	gap: 32px;
+	margin-bottom: 0;
+}
+.adduser-ingredient-modal-col {
+	flex: 1;
+	min-width: 100px;
+}
+.adduser-ingredient-modal-col label {
+	font-weight: 600;
+}
+.adduser-ingredient-modal-col input,
+.adduser-ingredient-modal-col select {
+	width: 100%;
+	font-size: 18px;
+	padding: 8px;
+	border-radius: 8px;
+	border: 1px solid #ccc;
+}
+.adduser-ingredient-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 20px;
+}
+.adduser-ingredient-cancel {
+	background: #ff5c5c;
+	color: #fff;
+	border: none;
+	border-radius: 8px;
+	padding: 12px 32px;
+	font-size: 18px;
+	cursor: pointer;
+}
+.adduser-ingredient-save {
+	background: #00e600;
+	color: #fff;
+	border: none;
+	border-radius: 8px;
+	padding: 12px 32px;
+	font-size: 18px;
+	cursor: pointer;
+}
+.adduser-title {
+	display: block;
+	font-size: 1.4rem;
+	font-weight: 700;
+	margin-bottom: 18px;
+}
+
 /* ===== Menu Item Card ===== */
 .menu-item {
 	display: flex;
@@ -35,27 +348,24 @@
 .menu-item-name {
 	font-size: 1.1rem;
 	font-weight: 700;
-	margin: 0;
-	text-align: left;
 	margin: 3px;
+	text-align: left;
 }
 
 .menu-item-description {
-	font-size: 0.80rem;
+	font-size: 0.8rem;
 	color: #333;
 	line-height: 1.3;
-	margin: 0;
 	margin: 3px;
 	text-align: left;
 }
 
 /* Price */
 .menu-item-price {
-	font-size: 1.0rem;
+	font-size: 1rem;
 	font-weight: 700;
-	margin-top: 0;
-	text-align: left;
 	margin: 3px;
+	text-align: left;
 }
 
 /* Active badge */
@@ -63,15 +373,13 @@
 	position: absolute;
 	top: 10px;
 	right: 16px;
-	margin-bottom: 200px;
 	color: #000;
 	font-weight: 700;
 	padding: 2px 12px;
 	border-radius: 20px;
 	font-size: 0.85rem;
-	background: #22c55e; /* default green */
+	background: #22c55e;
 }
-
 .menu-item-status.inactive {
 	background: #e53935;
 	color: #fff;
@@ -85,7 +393,6 @@
 	display: flex;
 	gap: 10px;
 }
-
 .menu-item-actions button {
 	background: none;
 	border: none;
@@ -95,123 +402,132 @@
 	border-radius: 50%;
 	transition: background 0.2s;
 }
-
 .menu-item-actions button.edit:hover {
 	background: rgba(0,0,0,0.08);
 }
-
 .menu-item-actions button.delete {
 	color: #e53935;
 }
-
 .menu-item-actions button.delete:hover {
 	background: rgba(229,57,53,0.15);
 }
+
 /* ===== Overlay / Backdrop ===== */
 .addmenu-overlay {
 	position: fixed;
-	top: 0; left: 0;
-	width: 100%; height: 100%;
-	background: rgba(0,0,0,0.35); /* semi-transparent dark layer */
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0,0,0,0.35);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	z-index: 1000;
+	backdrop-filter: blur(2px);
 }
 
-/* ===== Modal Container ===== */
+/* ===== Modal Container (Desktop Form) ===== */
 .addmenu-modal {
 	background: #fff;
 	border-radius: 16px;
-	padding: 18px 12px;
-	width: 95%;
-	max-width: 320px;
-	box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+	width: 85%;
+	max-width: 950px;
+	max-height: 90vh;
+	overflow-y: auto;
+	box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+	padding: 40px 60px;
 	font-family: 'Poppins', sans-serif;
-	text-align: center;
-	min-height: unset;
+	text-align: left;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	animation: fadeIn 0.25s ease-in-out;
 }
 
-/* Title */
+/* Modal Title */
 .addmenu-modal h2 {
-	font-size: 1.4rem;
+	font-size: 1.8rem;
 	font-weight: 700;
-	margin-bottom: 20px;
+	text-align: center;
+	margin-bottom: 35px;
 }
 
 /* ===== Upload Box ===== */
 .upload-box {
+	background: #fff;
 	border: 2px solid #000;
-	border-radius: 16px;
-	padding: 16px 8px;
-	margin: 0 auto 12px;
-	width: 130px;
-	height: 60px;
-	display: flex;
+	border-radius: 12px;
+	width: 270px;
+	height: 200px;
+	display: block;
 	flex-direction: column;
-	justify-content: center;
 	align-items: center;
+	justify-content: center;
 	cursor: pointer;
-	transition: background 0.2s;
+	transition: 0.2s;
+	margin-left: 4.1rem;
 }
 .upload-box:hover {
-	background: #f5f5f5;
+	border-color: #2196f3;
+	box-shadow: 0 2px 10px rgba(33,150,243,0.2);
 }
-.upload-box img, .upload-box svg {
-	width: 70px;
-	height: 70px;
-	margin-bottom: 4px;
-}
-
-/* ===== Form Fields ===== */
-.addmenu-form label {
+.upload-box img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	border-radius: 10px;
 	display: block;
-    grid-template-columns: 1fr 2fr;
-    align-items: center;
-    text-align: left;      /* ensures label text is left-aligned */
-	font-weight: 600;
-	
-	}
+}
+.upload-box-label {
+	color: #666;
+	font-size: 14px;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+}
 
-	.addmenu-form .status-row {
-		display: flex;
-		align-items: center;
-		margin-bottom: 8px;
+/* ===== Form Layout ===== */
+.addmenu-form {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 25px 40px;
+	padding: 10px 0;
+	align-items: start;
+}
+.addmenu-form label {
+	font-weight: 600;
+	margin-bottom: 6px;
+	display: block;
 }
 .addmenu-form input[type="text"],
-.addmenu-form input[type="email"],
-.addmenu-form input[type="password"],
 .addmenu-form input[type="number"],
-.addmenu-form textarea,
-.addmenu-form select {
-	width: 90%;
-	padding: 6px 8px;
+.addmenu-form select,
+.addmenu-form textarea {
+	width: 100%;
+	padding: 10px 12px;
 	border: 1px solid #ccc;
-	display: block;
 	border-radius: 8px;
-	font-size: 0.95rem;
-	outline: none;
-	margin-top: 4px;
-	margin-bottom: 11px;
+	font-size: 1rem;
+	box-sizing: border-box;
 }
-
-.addmenu-form .description-label {
-	display: block;
-	font-weight: 600;
-	text-align: left;
-	margin: 14px 0 6px;
+.addmenu-form textarea {
+	grid-column: 1 / span 2;
+	resize: none;
+	min-height: 80px;
 }
-
 
 /* ===== Status Buttons ===== */
-.status-options {               /* line 101 */
-    display: flex;
-    gap: 12px;
-    margin-top: 4px;
+.status-options {
+	display: flex;
+	gap: 12px;
+	margin-top: 4px;
 	margin-bottom: 13px;
-    justify-content: flex-start;
+	justify-content: flex-start;
 }
-
 .status-btn {
 	padding: 6px 16px;
 	border-radius: 20px;
@@ -222,7 +538,7 @@
 	transition: background 0.2s;
 }
 .status-btn.active {
-	background: #a7f3d0;  /* light green */
+	background: #a7f3d0;
 }
 .status-btn.inactive {
 	background: #ef6c6c;
@@ -230,165 +546,58 @@
 
 /* ===== Action Buttons ===== */
 .modal-actions {
+	grid-column: 1 / span 2;
 	display: flex;
-	justify-content: space-between;
-	margin-top: 24px;
+	justify-content: center;
+	gap: 20px;
+	margin-top: 30px;
 }
 .btn-cancel,
 .btn-confirm {
-	padding: 8px 22px;
+	padding: 10px 22px;
 	font-weight: 700;
-	border: none;
-	border-radius: 20px;
-	font-size: 1rem;
+	border-radius: 25px;
+	font-size: .9rem;
 	cursor: pointer;
-	transition: opacity 0.2s;
+	border: none;
+	transition: background 0.2s;
 }
 .btn-cancel {
 	background: #e53935;
 	color: #fff;
 }
 .btn-cancel:hover {
-	opacity: 0.85;
+	background: #d32f2f;
 }
 .btn-confirm {
 	background: #22c55e;
 	color: #fff;
 }
 .btn-confirm:hover {
-	opacity: 0.85;
+	background: #16a34a;
+}
+
+/* ===== Animation ===== */
+@keyframes fadeIn {
+	from { opacity: 0; transform: scale(0.96); }
+	to { opacity: 1; transform: scale(1); }
 }
 
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
-	.menu-item {
-		max-width: 98vw;
-		width: 98vw;
-		padding: 10px 4px;
-	}
-	.menu-item img {
-		width: 100px;
-		margin-right: 10px;
-	}
-	.menu-item-details {
-		gap: 4px;
-	}
-	.menu-item-name {
-		font-size: 1rem;
-	}
-	.menu-item-description {
-		font-size: 0.75rem;
-	}
-	.menu-item-price {
-		font-size: 0.95rem;
-	}
-	.controls {
-		flex-direction: column;
-		gap: 10px;
-		align-items: stretch;
-	}
-	.controls input[type="text"],
-	.controls select,
-	.add-menu {
-		width: 100%;
-		margin-left: 0;
-		margin-bottom: 8px;
-		box-sizing: border-box;
-	}
-}
-
-@media (max-width: 600px) {
-	.menu-item {
-		flex-direction: row;
-		align-items: flex-start;
-		max-width: 99vw;
-		width: 99vw;
-		padding: 8px 2vw;
-	}
-	.menu-item img {
-		width: 120px;
-		max-width: 40vw;
-		margin: 0 16px 0 0;
-		height: auto;
-	}
-	.menu-item-details {
-		width: 100%;
-		align-items: flex-start;
-		text-align: left;
-	}
-	.menu-item-actions {
-		position: absolute;
-		bottom: 10px;
-		right: 14px;
-		margin-top: 0;
-		justify-content: flex-end;
-	}
-	.menu-item-status {
-		position: absolute;
-		top: 10px;
-		right: 16px;
-		margin-bottom: 0;
-		display: inline-block;
-	}
-	.controls {
-		flex-direction: row;
-		gap: 10px;
-		align-items: center;
-		justify-content: center;
-	}
-	.controls input[type="text"],
-	.controls select,
-	.add-menu {
-		width: auto;
-		min-width: 120px;
-		margin-left: 0;
-		margin-bottom: 0;
-		box-sizing: border-box;
-	}
-}
-
-@media (max-width: 480px) {
 	.addmenu-modal {
-		padding: 24px 8px;
-		max-width: 99vw;
+		width: 95%;
+		padding: 30px 20px;
+		max-width: 600px;
 	}
-	.upload-box {
-		width: 120px;
-		height: 120px;
+	.addmenu-form {
+		grid-template-columns: 1fr;
 	}
-	.menu-item {
-		padding: 6px 1vw;
-	}
-	.menu-item img {
-		width: 90vw;
-		max-width: 160px;
-	}
-	.menu-item-details {
-		gap: 2px;
-	}
-	.menu-item-name {
-		font-size: 0.95rem;
-	}
-	.menu-item-description {
-		font-size: 0.7rem;
-	}
-	.menu-item-price {
-		font-size: 0.85rem;
-	}
-	.controls {
-		flex-direction: column;
-		gap: 6px;
-		align-items: stretch;
-	}
-	.controls input[type="text"],
-	.controls select,
-	.add-menu {
-		width: 100%;
-		margin-left: 0;
-		margin-bottom: 8px;
-		box-sizing: border-box;
+	.addmenu-form textarea {
+		grid-column: 1;
 	}
 }
+
 /* === Sidebar Backdrop Overlay === */
 .sidebar-backdrop {
 	position: fixed;
@@ -399,12 +608,12 @@
 	background: rgba(0,0,0,0.18);
 	z-index: 150;
 }
+
 /* === Global Styles === */
 body {
 	margin: 0;
 	background-color: #f7d64d;
 }
-
 .menu-management-page {
 	font-family: 'Fredoka One', Arial, sans-serif;
 }
@@ -447,10 +656,9 @@ body {
 	border-radius: 20px;
 	padding: 8px 16px;
 	font-weight: bold;
-	margin-left: 20px;
+	margin-left: 60px;
 	cursor: pointer;
 	transition: background 0.2s;
-	margin-left: 60px;
 }
 .add-menu:hover {
 	background-color: #ffb02e;
@@ -495,24 +703,102 @@ body {
 .sidebar-item.logout {
 	color: #e53935;
 }
-/* Adjust main content to not be hidden behind sidebar */
-@media (max-width: 900px) {
-	.sidebar-nav {
-		width: 120px;
-		padding-top: 20px;
-	}
-	.header, .controls {
-		margin-left: 130px;
-	}
+
+/* === Add Ingredient Modal Styles === */
+.addmenu-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.25);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.addingredient-modal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px 20px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  text-align: left;
+}
+.ingredient-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ingredient-row {
+  display: flex;
+  flex-direction: column;
+}
+.ingredient-row label {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ingredient-row input,
+.ingredient-row select {
+  border: 1px solid #000;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 1rem;
+  outline: none;
+}
+.add-ingredient-btn {
+  margin-top: 10px;
+  padding: px 10px;
+  font-weight: 700;
+  border: 2px solid #000;
+  border-radius: 25px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.add-ingredient-btn:hover {
+  background: #ffeb99;
+}
+.ingredients-container {
+  border: 2px solid #000;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.ingredient-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid #ddd;
 }
 
-/* === Responsive === */
-@media (max-width: 768px) {
-	.header h1 {
-		font-size: 1.6rem;
-	}
-	.controls {
-		flex-direction: column;
-		gap: 10px;
-	}
+/* Move Description label to the right to align with textbox */
+.adduser-modal-left label {
+  margin-left: 65px;
+}
+.adduser-ingredient-row td {
+  background: transparent !important;
+}
+.adduser-ingredient-row {
+  background: transparent !important;
+}
+
+/* Align ingredient table columns: Name left, Amount center, Unit right */
+.adduser-ingredients-table th:nth-child(1),
+.adduser-ingredients-table td:nth-child(1) {
+  text-align: left;
+}
+.adduser-ingredients-table th:nth-child(2) {
+	text-align: left;
+}
+.adduser-ingredients-table td:nth-child(2) {
+	text-align: left;
+	padding-left: 25px;
+}
+.adduser-ingredients-table th:nth-child(3) {
+  text-align: left;
+}
+.adduser-ingredients-table td:nth-child(3) {
+  text-align: left;
+  padding-left: 26px;
 }

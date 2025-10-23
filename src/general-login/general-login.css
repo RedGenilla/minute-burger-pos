@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap");
 
 .general-bg {
   margin: 0;
-  background-color: #FFD94A;
+  background-color: #ffd94a;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -12,10 +12,10 @@
 
 .general-header {
   text-align: center;
-  font-family: 'Fredoka One', cursive;
+  font-family: "Fredoka One", cursive;
   font-weight: bold;
   font-size: 35px;
-  color: #5A2C0E;
+  color: #5a2c0e;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -30,7 +30,7 @@
 .general-poster {
   width: 375px;
   height: 750px;
-  background-color: #FFD94A;
+  background-color: #ffd94a;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -42,12 +42,13 @@
 .login-container {
   background-color: #fff;
   width: 90%;
-  height: 80%;
+  height: 60%;
   border-radius: 6px;
   padding: 30px 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  margin-bottom: 120px;
 }
 
 .login-title {
@@ -130,6 +131,8 @@
 .general-footer {
   text-align: center;
   width: 100%;
+  /* Place just below the login container */
+  top: 78%;
 }
 .general-footer hr {
   border: none;

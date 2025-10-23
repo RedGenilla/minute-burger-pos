@@ -1,292 +1,361 @@
-/* Ban/Unban button styles */
-.admin-btn-ban {
-	background-color: #e53935;
-	color: #fff;
-	border: none;
-	padding: 6px 16px;
-	border-radius: 4px;
-	cursor: pointer;
-	font-weight: bold;
-	transition: background 0.2s;
+/* Add User Modal Header Bar to match Menu Management */
+/*.adduser-header-bar {
+  background: #fcd949;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  padding: 18px 0 10px 0;
+  text-align: center;
+  margin: -18px -12px 18px -12px;
 }
-.admin-btn-ban:hover {
-	background-color: #b71c1c;
+.adduser-title {
+  text-transform: uppercase;
+  font-size: 1.3rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #5A2C0E;
+  font-family: 'Fredoka One', Arial, sans-serif;
 }
-.admin-btn-unban {
-	background-color: #43a047;
-	color: #fff;
-	border: none;
-	padding: 6px 16px;
-	border-radius: 4px;
-	cursor: pointer;
-	font-weight: bold;
-	transition: background 0.2s;
-} 
-.admin-btn-unban:hover {
-	background-color: #2e7d32;
+/* Add User Modal Title to match Menu Management */
+.adduser-title {
+  text-transform: uppercase;
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+  text-align: center;
+  color: #222;
 }
-/* Log out button at top right of admin-board-page */
-.admin-board-page {
-	position: relative;
+/* Add User Modal (styled like Menu Management) */
+.adduser-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 12px;
+  width: 95%;
+  max-width: 320px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  font-family: Arial, sans-serif;
+  text-align: center;
 }
-.admin-board-page .logout-btn {
-	position: absolute;
-	top: 32px;
-	right: 40px;
-	z-index: 10;
-	background-color: #e53e3e;
-	color: #fff;
-	border: none;
-	padding: 10px 24px;
-	border-radius: 25px;
-	font-size: 0.8rem;
-	font-weight: bold;
-	cursor: pointer;
-	box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-	transition: background 0.2s;
+.adduser-form label {
+  display: block;
+  font-weight: 600;
+  text-align: left;
+  margin: 14px 0 6px;
 }
-.admin-board-page .logout-btn:hover {
-	background-color: #c53030;
+.adduser-form input,
+.adduser-form select {
+  width: 90%;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  display: block;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+  margin-top: 4px;
+  margin-bottom: 11px;
 }
-.admin-board-page {
-	max-width: 900px;
-	margin: 40px auto;
-	background: #fff;
-	border-radius: 12px;
-	box-shadow: 0 2px 16px rgba(0,0,0,0.08);
-	padding: 32px;
+.adduser-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24px;
 }
-/* Responsive styles */
-@media (max-width: 900px) {
-	.admin-board-page {
-		max-width: 100%;
-		margin: 24px 8px;
-		padding: 20px;
-	}
+.btn-cancel,
+.btn-confirm {
+  padding: 8px 22px;
+  font-weight: 700;
+  border: none;
+  border-radius: 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
 }
-
-@media (max-width: 600px) {
-	.admin-board-page {
-		padding: 12px;
-		border-radius: 8px;
-	}
-	.admin-header {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 8px;
-		margin-bottom: 20px;
-	}
-	.admin-logo {
-		width: 40px;
-		height: 40px;
-	}
-	.admin-title {
-		font-size: 1.3rem;
-	}
-	.admin-controls {
-		flex-direction: column;
-		gap: 8px;
-		margin-bottom: 16px;
-	}
-	.admin-user-table th, .admin-user-table td {
-		padding: 8px 4px;
-		font-size: 0.95em;
-	}
-	.admin-modal-content {
-		min-width: 90vw;
-		padding: 18px 8px;
-	}
-	.admin-add-form input,
-	.admin-add-form select {
-		padding: 6px 6px;
-		font-size: 1em;
-	}
-	.admin-form-actions {
-		gap: 8px;
-	}
-	.admin-btn-save,
-	.admin-btn-cancel {
-		padding: 8px 12px;
-		font-size: 0.95em;
-	}
-
-	/* Make table horizontally scrollable on mobile */
-	.admin-user-table {
-		display: block;
-		width: 100%;
-		overflow-x: auto;
-		-webkit-overflow-scrolling: touch;
-	}
-	.admin-user-table table {
-		width: 100%;
-		min-width: 500px;
-	}
+.btn-cancel {
+  background: #e53935;
+  color: #fff;
+}
+.btn-cancel:hover {
+  opacity: 0.85;
+}
+.btn-confirm {
+  background: #22c55e;
+  color: #fff;
+}
+.btn-confirm:hover {
+  opacity: 0.85;
+}
+/* --- Layout --- */
+.opswat-admin {
+  display: flex;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  background: #f7d64d;
 }
 
-@media (max-width: 400px) {
-	.admin-board-page {
-		padding: 6px;
-		border-radius: 6px;
-	}
-	.admin-title {
-		font-size: 1rem;
-	}
-	.admin-user-table th, .admin-user-table td {
-		padding: 4px 2px;
-		font-size: 0.85em;
-	}
-	.admin-btn-add,
-	.admin-btn-save,
-	.admin-btn-cancel {
-		padding: 6px 8px;
-		font-size: 0.85em;
-	}
-	.admin-modal-content {
-		min-width: 98vw;
-		padding: 8px 2px;
-	}
+.ops-sidebar {
+  width: 220px;
+  background: #f7d64d;
+  color: #000;
+  padding: 1rem;
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+    height: 89vh;
 }
 
-@media (max-width: 350px) {
-	/* Stack table headers vertically for extreme small screens */
-	.admin-user-table th, .admin-user-table td {
-		display: block;
-		width: 100%;
-		box-sizing: border-box;
-		text-align: left;
-	}
-	.admin-user-table tr {
-		display: block;
-		margin-bottom: 8px;
-		border-bottom: 1px solid #eee;
-	}
+@media (max-width: 1024px) {
+    .ops-sidebar {
+        height: auto;
+        min-height: 100vh;
+        padding-bottom: 24px;
+    }
+    .sidebar-nav-links {
+        flex: unset;
+    }
+    .ops-sidebar .logout {
+        margin-top: 24px;
+        margin-bottom: 0;
+        align-self: flex-start;
+        width: 100%;
+    }
 }
-/* Center the header logo and title */
-.admin-header {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 16px;
-	margin-bottom: 32px;
+.ops-sidebar .ops-logo {
+  font-size: 1.4rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: #000;
 }
-/* Responsive styles for header are added in media queries above */
-.admin-logo {
-	width: 70px;
-	height: 60px;
+.ops-sidebar .nav-item {
+  display: block;
+  color: #000;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.4rem;
+  border-radius: 4px;
+  text-decoration: none;
 }
-.admin-title {
-	font-size: 2rem;
-	font-weight: 700;
-	color: #eab308;
+.ops-sidebar .nav-item:hover,
+.ops-sidebar .nav-item.active {
+  background: #ffb02e;
+  color: #333;
 }
-.admin-controls {
-	display: flex;
-	gap: 16px;
-	margin-bottom: 24px;
+.ops-sidebar .logout {
+  color: #000;
+  background: #f7d64d;
+  border: none;
 }
-/* Responsive styles for controls are added in media queries above */
-.admin-search, .admin-filter {
-	padding: 8px 12px;
-	border-radius: 6px;
-	border: 1px solid #ddd;
+.sidebar-nav-links {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
-.admin-btn-add {
-	background: #e88412;
-	color: #fff;
-	border: none;
-	border-radius: 6px;
-	padding: 8px 18px;
-	font-weight: 600;
-	cursor: pointer;
-	transition: background 0.2s;
+.sidebar-logout-wrap {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
-.admin-btn-add:hover {
-	background: #c08401;
+
+/* Main content */
+.ops-main {
+  flex: 1;
+  padding: 2rem;
+  background: #fff;
 }
-.admin-user-table {
-	width: 100%;
-	border-collapse: collapse;
-	margin-bottom: 24px;
+
+/* Header */
+.ops-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  color: #000;
 }
-/* Responsive styles for table are added in media queries above */
-.admin-user-table th, .admin-user-table td {
-	padding: 12px 8px;
-	border-bottom: 1px solid #eee;
-	text-align: left;
+.ops-header h1 {
+  font-size: 1.8rem;
+  color: #000;
 }
-.admin-status {
-	padding: 4px 12px;
-	border-radius: 12px;
-	font-size: 0.95em;
-	font-weight: 500;
+.add-btn {
+  background: #f89c00;
+  color: #000;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
 }
-.admin-status.active {
-	background: #d1fae5;
-	color: #065f46;
+.add-btn:hover { 
+  background: #ffb02e; 
 }
- .admin-status.inactive {
-	background: #fef3c7;
-	color: #92400e;
+/* Controls */
+.ops-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
-.admin-status.banned {
-	background: #fee2e2;
-	color: #991b1b;
+.ops-controls .search,
+.ops-controls select {
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid #bcbcbc;
 }
-.admin-action {
-	background: none;
-	border: none;
-	cursor: pointer;
-	font-size: 1.2em;
-	margin-right: 8px;
+
+/* Table */
+.table-wrap {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow-x: auto;
 }
-.admin-action.delete {
-	color: #dc2626;
+.ops-table {
+  width: 100%;
+  border-collapse: collapse;
 }
-.admin-modal {
-	position: fixed;
-	top: 0; left: 0; right: 0; bottom: 0;
-	background: rgba(0,0,0,0.25);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 1000;
+.ops-table th,
+.ops-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+  color: #000;
 }
-.admin-modal-content {
-	background: #fff;
-	padding: 32px 24px;
-	border-radius: 10px;
-	min-width: 320px;
-	box-shadow: 0 2px 16px rgba(0,0,0,0.12);
+.ops-table tr:hover { background: #ffb02e; }
+.status {
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
 }
-/* Responsive styles for modal are added in media queries above */
-.admin-add-form input,
-.admin-add-form select {
-	width: 100%;
-	margin-bottom: 16px;
-	padding: 8px 10px;
-	border-radius: 6px;
-	border: 1px solid #ddd;
+.status.active   { background: #a7f3d0; color: #065f46; }
+.status.inactive { background: #ef6c6c; color: #fff; }
+.status.banned   { background: #e53935; color: #fff; }
+.edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  pointer-events: auto; /* Ensure edit icon is always clickable */
+  z-index: 2;
 }
-.admin-form-actions {
-	display: flex;
-	gap: 12px;
-	justify-content: flex-end;
+
+/* Ensure sidebar icons are always clickable */
+.ops-sidebar .nav-item, .ops-sidebar .logout {
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
 }
-.admin-btn-save {
-	background: #e88412;
-	color: #fff;
-	border: none;
-	border-radius: 6px;
-	padding: 8px 18px;
-	font-weight: 600;
-	cursor: pointer;
+
+/* Modals (use adduser-modal styles for both add and edit) */
+.modal-bg {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: auto;
 }
-.admin-btn-cancel {
-	background: #ddd;
-	color: #333;
-	border: none;
-	border-radius: 6px;
-	padding: 8px 18px;
-	font-weight: 600;
-	cursor: pointer;
+.adduser-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 12px;
+  width: 95%;
+  max-width: 320px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  font-family: Arial, sans-serif;
+  text-align: center;
 }
+.adduser-header-bar {
+  /* Removed yellow background */
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  text-align: center;
+
+}
+.adduser-title {
+  text-transform: uppercase;
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+  text-align: center;
+  color: #222;
+}
+.adduser-form label {
+  display: block;
+  font-weight: 600;
+  text-align: left;
+  margin: 14px 0 6px;
+}
+.adduser-form input,
+.adduser-form select {
+  width: 90%;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  display: block;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+  margin-top: 4px;
+  margin-bottom: 11px;
+}
+.adduser-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24px;
+}
+.btn-cancel,
+.btn-confirm {
+  padding: 8px 22px;
+  font-weight: 700;
+  border: none;
+  border-radius: 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-cancel {
+  background: #e53935;
+  color: #fff;
+}
+.btn-cancel:hover {
+  opacity: 0.85;
+}
+.btn-confirm {
+  background: #22c55e;
+  color: #fff;
+}
+.btn-confirm:hover {
+  opacity: 0.85;
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.ban-btn {
+  background: #e53935;
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 6px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.ban-btn:hover {
+  background: #b71c1c;
+}
+.unban-btn {
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 6px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.unban-btn:hover {
+  background: #15803d;
+}
+.error { color: red; margin-top: 0.5rem; text-align: center; }

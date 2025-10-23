@@ -1,0 +1,564 @@
+/* === Summary Table for Table Summary Tab === */
+.salesreport-summary-table-wrapper {
+	background: #f5f5f5;
+	border-radius: 14px;
+	box-shadow: 0 3px 6px rgba(0,0,0,0.10);
+	padding: 0.5rem 0.5rem 0.5rem 0.5rem;
+	margin-top: 1.2rem;
+	overflow-x: auto;
+}
+
+.salesreport-summary-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	background: #fff;
+	border-radius: 12px;
+	overflow: hidden;
+	font-size: 1rem;
+	box-shadow: 0 2px 8px #0000000a;
+}
+.salesreport-summary-table th, .salesreport-summary-table td {
+	padding: 10px 14px;
+	text-align: left;
+	border-bottom: 1px solid #ececec;
+}
+.salesreport-summary-table th {
+	background: #e0e0e0;
+	color: #222;
+	font-size: 1.05rem;
+	font-weight: 700;
+	border-top: none;
+}
+.salesreport-summary-table tr:last-child td {
+	border-bottom: none;
+}
+.salesreport-summary-table td {
+	font-size: 1rem;
+	color: #222;
+}
+.salesreport-summary-table tbody tr:nth-child(even) {
+	background: #fafafa;
+}
+.salesreport-summary-table tbody tr:nth-child(odd) {
+	background: #fff;
+}
+.salesreport-summary-table td, .salesreport-summary-table th {
+	min-width: 80px;
+}
+.salesreport-summary-table th:first-child, .salesreport-summary-table td:first-child {
+	border-radius: 12px 0 0 12px;
+}
+.salesreport-summary-table th:last-child, .salesreport-summary-table td:last-child {
+	border-radius: 0 12px 12px 0;
+}
+.salesreport-summary-table td {
+	vertical-align: middle;
+}
+/* Responsive Chart Container for Chart.js */
+.salesreport-bar-chart-outer-responsive {
+	width: 100%;
+	height: 100%;
+	min-height: 320px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.salesreport-bar-chart-area-responsive {
+	flex: 1;
+	width: 100%;
+	height: 100%;
+}
+/* === Custom Bar Chart for Best Sellers === */
+.salesreport-bar-chart-outer {
+	max-width: 360px;
+	margin-top: 24px;
+	background: #f3f3f3;
+	border-radius: 12px;
+	padding: 16px;
+}
+
+.salesreport-bar-chart-title {
+	font-weight: 600;
+	font-size: 2rem;
+	margin-bottom: 8px;
+	color: #ff9800;
+	text-align: center;
+}
+
+.salesreport-bar-chart-area {
+	position: relative;
+	width: 100%;
+	height: 180px;
+	background: #f3f3f3;
+	border-radius: 8px;
+	margin: 0 auto;
+	padding-bottom: 8px;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+		left: -10rem;
+
+}
+
+.salesreport-bar-chart-svg {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 200%;
+	height: 80%;
+}
+
+.salesreport-bar-chart-bar {
+	fill: #ff9800;
+	rx: 3;
+	transition: fill 0.2s;
+}
+
+.salesreport-bar-chart-xlabels {
+	position: absolute;
+	left: -1rem;
+	bottom: 0;
+	width: 300%;
+	display: flex;
+	justify-content: space-between;
+	font-size: 12px;
+	color: #222;
+	height: 36px;
+	align-items: flex-end;
+}
+
+.salesreport-bar-chart-xlabel {
+	flex: 1 1 0;
+	min-width: 0;
+	text-align: center;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* === Tab Buttons and Export Row === */
+.salesreport-tab-btn-row {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	margin-left: 1rem;
+}
+
+.salesreport-tab-btn {
+	background: #ccc;
+	color: #222;
+	border: none;
+	border-radius: 2rem;
+	font-weight: 500;
+	font-size: .8rem;
+	padding: 0.5rem 2.2rem;
+	cursor: pointer;
+	outline: none;
+	transition: all 0.2s;
+}
+.salesreport-tab-btn.active {
+	background: #ff9800;
+	color: #fff;
+	font-weight: 700;
+	text-decoration: none;
+	box-shadow: 0 2px 8px #ff980033;
+}
+
+.salesreport-export-btn {
+	background: #ffe066;
+	color: #222;
+	border: none;
+	border-radius: 1.5rem;
+	font-weight: 600;
+	font-size: .8rem;
+	padding: 0.5rem 1.2rem;
+	cursor: pointer;
+	box-shadow: 0 2px 8px #ffe06655;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+/* === Header Row with Date Range Picker === */
+.salesreport-header-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 2rem;
+}
+/* === Metrics Column for SalesReport === */
+.salesreport-metrics-col {
+	display: flex;
+	flex-direction: column;
+	gap: 1.2rem;
+	flex: 0 0 auto;
+}
+
+/* Margin for summary table below metrics */
+.summary-table-margin {
+	margin-top: 1.2rem;
+}
+
+/* Margin for chart container to the right of metrics */
+.salesreport-chart-container-margin {
+	margin-left: 1.5rem;
+	flex: 1;
+}
+/* === Chart List Styling === */
+
+/* === Row Flex for Metrics and Chart === */
+.salesreport-row-flex {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	margin-top: 1rem;
+}
+/* === Date Range Picker Row === */
+.salesreport-date-range-row {
+	display: flex;
+	justify-content: flex-end;
+}
+.salesreport-date-range-picker {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	background: #fffbe7;
+	border: 1px solid #ffe066;
+	border-radius: 1.2rem;
+	padding: 0.1rem;
+	box-shadow: 0 1px 4px #ffe06622;
+	font-size: 0.92rem;
+	min-height: 32px;
+	height: 32px;
+	margin-left: 9.4rem;
+}
+
+.salesreport-date-range-picker input[type="date"] {
+	background: transparent;
+	border: none;
+	outline: none;
+	font-size: 0.92rem;
+	color: #222;
+	padding: 0.08rem 0.2rem;
+	border-radius: 0.7rem;
+	transition: background 0.2s, box-shadow 0.2s;
+	height: 28px;
+	min-width: 90px;
+	width: 90px;
+}
+.salesreport-date-range-picker input[type="date"]:focus {
+	background: #fffde7;
+	box-shadow: 0 0 0 2px #ffe06699;
+}
+.salesreport-date-arrow {
+	font-weight: bold;
+	color: #ff9800;
+	font-size: 1rem;
+	margin: 0 0.15rem;
+	line-height: 1;
+}
+/* === Metric Cards (Revenue & Profit) === */
+.salesreport-metrics {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	margin-bottom: 20px;
+	margin-top: -2.5rem;
+	align-items: flex-start;
+	max-width: 200px;
+	margin-left: 0;
+	width: 100%;
+}
+
+.salesreport-metric-card {
+	background: #f3f3f3;
+	border-radius: 14px;
+	box-shadow: 0 4px 8px 0 rgba(0,0,0,0.10), 0 2px 4px 0 rgba(0,0,0,0.08);
+	padding: 1.2rem 2rem;
+	text-align: center;
+	width: 80%;
+	margin-left: 0;
+	margin-bottom: 17px;
+	border: none;
+}
+.summary-table {
+	width: 200px;
+	min-width: 350px;
+	max-width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	margin-top: 1.5rem;
+	background: #fff;
+	border-radius: 12px 12px 12px 12px;
+	overflow: hidden;
+	box-shadow: 0 2px 6px #0001;
+	margin-left: 0;
+	border: 1px solid #d1d1d1;
+	font-size: 1.08rem;
+}
+
+.summary-table th {
+	background: #ededed;
+	color: #222;
+	font-size: .9rem;
+	font-weight: 600;
+	text-align: left;
+	padding: 12px 15px;
+	border-bottom: 1px solid #d1d1d1;
+}
+.summary-table td {
+	padding: 12px 18px;
+	border-bottom: 1px solid #e0e0e0;
+	text-align: left;
+	font-size: .9rem;
+}
+.summary-table tr:last-child td {
+	border-bottom: none;
+}
+
+
+.metric-label {
+	font-size: 0.8rem;
+	color: #888;
+	margin-bottom: 0.5rem;
+}
+
+.metric-value {
+	font-size: 1.2rem;
+	font-weight: bold;
+	color: #222;
+}
+
+/* === Chart Container (Best Selling Products) === */
+.salesreport-chart-container {
+	background: #f3f3f3;
+	border-radius: 16px;
+	box-shadow: 0 4px 8px 0 rgba(0,0,0,0.10), 0 2px 4px 0 rgba(0,0,0,0.08);
+	padding: 2rem;
+	text-align: center;
+		width: 250px;
+		height: 410px;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-start;
+		align-items: center;
+}
+
+.salesreport-chart-title {
+	font-size: 1.5rem;
+	font-weight: bold;
+	margin-bottom: 1rem;
+	color: #222;
+}
+
+.salesreport-chart-list {
+	text-align: left;
+	margin: 0 auto;
+	padding-left: 0;
+	list-style: none;
+}
+/* === Sales Report Page Styles (Opswat) === */
+.salesreport-page {
+	font-family: 'Fredoka One', Arial, sans-serif;
+	background-color: #f7d64d;
+	min-height: 100vh;
+}
+
+/* === Sidebar Navigation === */
+.salesreport-sidebar {
+	position: fixed;
+	top: 0;
+	left: 0;
+    height: 100vh;
+    width: 180px;
+    background-color: #f89c00;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 40px;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.07);
+    z-index: 100;
+}
+
+@media (max-width: 1024px) {
+    .salesreport-sidebar {
+        height: auto;
+        min-height: 100vh;
+        padding-bottom: 24px;
+        justify-content: flex-start;
+    }
+    .salesreport-sidebar-link.logout {
+        margin-top: 24px;
+        margin-bottom: 0;
+        align-self: flex-start;
+        width: 100%;
+    }
+}
+.salesreport-sidebar-link {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: #000;
+	text-decoration: none;
+	margin-bottom: 32px;
+	font-size: 1.05em;
+	transition: background 0.2s, color 0.2s;
+	width: 100%;
+	padding: 12px 0;
+	border-radius: 12px;
+}
+.salesreport-sidebar-link:hover {
+	background: #ffb02e;
+	color: #333;
+}
+.salesreport-sidebar-link.logout {
+	color: #e53935;
+}
+
+/* === Header === */
+.salesreport-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 30px 20px 10px;
+	margin-left: 200px;
+}
+.salesreport-header h1 {
+	font-size: 2rem;
+	font-weight: 700;
+}
+
+/* === Controls (Filters/Search) === */
+.salesreport-controls {
+	display: flex;
+	justify-content: flex-start;
+	gap: 15px;
+	margin: 20px 0 18px 200px;
+}
+.salesreport-controls input[type="text"],
+.salesreport-controls select {
+	padding: 8px 12px;
+	border-radius: 20px;
+	border: 2px solid #000;
+	font-size: 1rem;
+	outline: none;
+}
+
+/* === Table === */
+.salesreport-table-wrap {
+	margin-left: 200px;
+	padding: 0 20px 40px 0;
+}
+.salesreport-table {
+	width: 100%;
+	border-collapse: collapse;
+	background: #fff;
+	border-radius: 14px;
+	box-shadow: 0 3px 6px rgba(0,0,0,0.12);
+	overflow: hidden;
+}
+.salesreport-table th, .salesreport-table td {
+	padding: 12px 14px;
+	text-align: left;
+	border-bottom: 1px solid #eee;
+}
+.salesreport-table th {
+	background: #f89c00;
+	color: #000;
+	font-size: 1.05rem;
+	font-weight: 700;
+}
+.salesreport-table tr:last-child td {
+	border-bottom: none;
+}
+.salesreport-table td {
+	font-size: 1rem;
+}
+
+/* === Status Badge (for Paid/Unpaid, etc.) === */
+.salesreport-status {
+	display: inline-block;
+	padding: 2px 12px;
+	border-radius: 20px;
+	font-size: 0.85rem;
+	font-weight: 700;
+	background: #22c55e;
+	color: #000;
+}
+.salesreport-status.unpaid {
+	background: #e53935;
+	color: #fff;
+}
+
+/* === Action Buttons (View, Export, etc.) === */
+.salesreport-actions {
+	display: flex;
+	gap: 10px;
+}
+.salesreport-actions button {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 1.1rem;
+	padding: 4px 10px;
+	border-radius: 20px;
+	transition: background 0.2s;
+}
+.salesreport-actions button.view:hover {
+	background: rgba(33,150,243,0.08);
+}
+.salesreport-actions button.export {
+	color: #22c55e;
+}
+.salesreport-actions button.export:hover {
+	background: rgba(34,197,94,0.12);
+}
+
+/* === Modal Overlay (for details/export) === */
+.salesreport-modal-overlay {
+	position: fixed;
+	top: 0; left: 0;
+	width: 100vw; height: 100vh;
+	background: rgba(0,0,0,0.35);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+.salesreport-modal {
+	background: #fff;
+	border-radius: 16px;
+	padding: 24px 18px;
+	width: 95%;
+	max-width: 400px;
+	box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+		width: 350px;
+		min-width: 250px;
+		max-width: 100%;
+		flex-shrink: 0;
+}
+
+/* === Responsive === */
+@media (max-width: 900px) {
+	.salesreport-sidebar {
+		width: 120px;
+		padding-top: 20px;
+	}
+	.salesreport-header, .salesreport-controls, .salesreport-table-wrap {
+		margin-left: 130px;
+	}
+}
+@media (max-width: 600px) {
+	.salesreport-header, .salesreport-controls, .salesreport-table-wrap {
+		margin-left: 0;
+		padding: 0 2vw;
+	}
+	.salesreport-header h1 {
+		font-size: 1.2rem;
+	}
+	.salesreport-table th, .salesreport-table td {
+		padding: 8px 6px;
+		font-size: 0.95rem;
+	}
+}
