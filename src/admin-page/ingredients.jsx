@@ -11,6 +11,115 @@ import logoutIcon from "../assets/logout.png";
 import sidebarIcon from "../assets/sidebar.png";
 import homeIcon from "../assets/home.png";
 
+const categoryOptions = [
+  { value: "BR", label: "BR/Bread" },
+  { value: "PR", label: "PR/Protein" },
+  { value: "CH", label: "CH/Cheese" },
+  { value: "VG", label: "VG/Vegetable" },
+  { value: "SC", label: "SC/Sauce" },
+  { value: "SD", label: "SD/Snack" },
+  { value: "BV", label: "BV/Beverage" },
+  { value: "EX", label: "EX/Add-on" },
+];
+
+const itemCodes = {
+  BR: [
+    { code: "BR-001", name: "Burger Bun (Regular)" },
+    { code: "BR-002", name: "Burger Bun (Premium)" },
+    { code: "BR-003", name: "Hotdog Bun" },
+  ],
+  PR: [
+    { code: "PR-001", name: "Beef Patty (Regular)" },
+    { code: "PR-002", name: "Beef Patty (Premium)" },
+    { code: "PR-003", name: "Chicken Patty (Regular)" },
+    { code: "PR-004", name: "Chicken Patty (Premium)" },
+    { code: "PR-005", name: "Frank Sausage" },
+    { code: "PR-006", name: "Bacon Stripes" },
+    { code: "PR-007", name: "Whole egg" },
+  ],
+  CH: [
+    { code: "CH-001", name: "Cheese Slice" },
+    { code: "CH-002", name: "Cheese Sauce" },
+  ],
+  VG: [
+    { code: "VG-001", name: "Lettuce" },
+    { code: "VG-002", name: "Tomato" },
+    { code: "VG-003", name: "Onion" },
+    { code: "VG-004", name: "Cabbage" },
+  ],
+  SC: [
+    { code: "SC-001", name: "Ketchup" },
+    { code: "SC-002", name: "Mayonnaise" },
+    { code: "SC-003", name: "Mustard" },
+    { code: "SC-004", name: "Shawarma Sauce" },
+    { code: "SC-005", name: "Chimichurri Sauce" },
+    { code: "SC-006", name: "Roasted Sesame Dressing" },
+    { code: "SC-007", name: "Black Pepper Sauce" },
+    { code: "SC-008", name: "Chili con Carne" },
+  ],
+  SD: [
+    { code: "SD-001", name: "Nachos" },
+    { code: "SD-002", name: "Clover Chips" },
+    { code: "SD-003", name: "Coleslaw Mix" },
+  ],
+  BV: [
+    { code: "BV-001", name: "Iced Choco Mix" },
+    { code: "BV-002", name: "Hot Choco Mix" },
+    { code: "BV-003", name: "Coffee Mix" },
+    { code: "BV-004", name: "Milk Tea Syrup (Wintermelon)" },
+    { code: "BV-005", name: "Milk Tea Syrup (Krazy)" },
+    { code: "BV-006", name: "Juice Concentrate (Calamansi)" },
+    { code: "BV-007", name: "Juice Concentrate (Fruitwist)" },
+    { code: "BV-008", name: "Mineral Water" },
+  ],
+  EX: [
+    { code: "EX-001", name: "Extra Cheese" },
+    { code: "EX-002", name: "Extra Egg" },
+    { code: "EX-003", name: "Extra Coleslaw" },
+  ],
+};
+
+const unitOptions = {
+  "BR-001": ["pc"],
+  "BR-002": ["pc"],
+  "BR-003": ["pc"],
+  "PR-001": ["pc"],
+  "PR-002": ["pc"],
+  "PR-003": ["pc"],
+  "PR-004": ["pc"],
+  "PR-005": ["pc"],
+  "PR-006": ["strips", "pack"],
+  "PR-007": ["pc"],
+  "CH-001": ["slice"],
+  "CH-002": ["g", "L"],
+  "VG-001": ["g"],
+  "VG-002": ["pc", "g"],
+  "VG-003": ["pc", "g"],
+  "VG-004": ["kg"],
+  "SC-001": ["g", "ml"],
+  "SC-002": ["g", "ml"],
+  "SC-003": ["g", "ml"],
+  "SC-004": ["g", "ml"],
+  "SC-005": ["g", "ml"],
+  "SC-006": ["g", "ml"],
+  "SC-007": ["g", "ml"],
+  "SC-008": ["g"],
+  "SD-001": ["g"],
+  "SD-002": ["pack"],
+  "SD-003": ["g"],
+  "BV-001": ["g"],
+  "BV-002": ["g"],
+  "BV-003": ["g"],
+  "BV-004": ["ml"],
+  "BV-005": ["ml"],
+  "BV-006": ["ml"],
+  "BV-007": ["ml"],
+  "BV-008": ["bit"],
+  "EX-001": ["slice"],
+  "EX-002": ["pc"],
+  "EX-003": ["g"],
+};
+
 export default function IngredientsDashboard() {
   const { signOut } = UserAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -56,7 +165,14 @@ export default function IngredientsDashboard() {
   const addItem = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.from("ingredient-list").insert([newItem]);
+    // Auto-toggle status based on quantity
+    const itemToAdd = {
+      ...newItem,
+      status: Number(newItem.quantity) > 0 ? "Active" : "Inactive",
+    };
+    const { error } = await supabase
+      .from("ingredient-list")
+      .insert([itemToAdd]);
     if (!error) {
       setShowForm(false);
       setNewItem({
@@ -86,9 +202,14 @@ export default function IngredientsDashboard() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    // Auto-toggle status based on quantity
+    const updatedValues = {
+      ...editValues,
+      status: Number(editValues.quantity) > 0 ? "Active" : "Inactive",
+    };
     const { error } = await supabase
       .from("ingredient-list")
-      .update(editValues)
+      .update(updatedValues)
       .eq("id", editItem.id);
     if (!error) {
       setShowEditModal(false);
@@ -104,7 +225,11 @@ export default function IngredientsDashboard() {
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         item.code.toLowerCase().includes(search.toLowerCase())
     )
-    .filter((item) => (filter === "Status" ? true : item.status === filter));
+    .filter((item) => (filter === "Status" ? true : item.status === filter))
+    .map((item) => ({
+      ...item,
+      status: Number(item.quantity) > 0 ? "Active" : "Inactive",
+    }));
 
   return (
     <div className="opswat-admin">
@@ -122,10 +247,8 @@ export default function IngredientsDashboard() {
             Inventory
           </a>
           <a href="/admin/sales-report" className="nav-item">
-						Sales Report
-					</a>
-        </nav>
-        <div className="sidebar-logout-wrap">
+            Sales Report
+          </a>
           <button
             className="nav-item logout"
             onClick={async () => {
@@ -135,7 +258,7 @@ export default function IngredientsDashboard() {
           >
             Log out
           </button>
-        </div>
+        </nav>
       </aside>
 
       {/* Main */}
@@ -166,12 +289,12 @@ export default function IngredientsDashboard() {
           <table className="ops-table">
             <thead>
               <tr>
+                <th>Category</th>
                 <th>Item Code</th>
                 <th>Item Name</th>
-                <th>Category</th>
+                <th>Quantity</th>
                 <th>Units</th>
                 <th>Cost</th>
-                <th>Quantity</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
@@ -179,26 +302,33 @@ export default function IngredientsDashboard() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7">Loading…</td>
+                  <td colSpan="8">Loading…</td>
                 </tr>
               ) : displayedItems.length === 0 ? (
                 <tr>
-                  <td colSpan="7">No items yet. Click "Add Item +" to create one.</td>
+                  <td colSpan="8">
+                    No items yet. Click "Add Item +" to create one.
+                  </td>
                 </tr>
               ) : (
                 displayedItems.map((item) => (
                   <tr key={item.id}>
+                    <td>{item.category}</td>
                     <td>{item.code}</td>
                     <td>{item.name}</td>
-                    <td>{item.category}</td>
+                    <td>{item.quantity ?? 0}</td>
                     <td>{item.units}</td>
                     <td>₱{item.cost}.00</td>
-                    <td>{item.quantity ?? 0}</td>
                     <td>
-                      <span className={`status ${item.status.toLowerCase()}`}>{item.status}</span>
+                      <span className={`status ${item.status.toLowerCase()}`}>
+                        {item.status}
+                      </span>
                     </td>
                     <td>
-                      <button className="edit" onClick={() => openEditModal(item)}>
+                      <button
+                        className="edit"
+                        onClick={() => openEditModal(item)}
+                      >
                         ✏️
                       </button>
                     </td>
@@ -212,96 +342,119 @@ export default function IngredientsDashboard() {
         {/* Add Item Modal */}
         {showForm && (
           <div className="modal-bg">
-            <div className="adduser-modal">
+            <div className="ingredients-modal">
               <div className="adduser-header-bar">
                 <span className="adduser-title">ADD ITEM</span>
               </div>
               <form className="adduser-form" onSubmit={addItem}>
-                <label>Item Code:</label>
-                <input
-                  name="code"
-                  value={newItem.code}
-                  onChange={(e) => setNewItem({ ...newItem, code: e.target.value })}
-                  required
-                />
+                <div className="ingredients-form-row">
+                  <div className="ingredients-form-col">
+                    <label>Category:</label>
+                    <select
+                      name="category"
+                      value={newItem.category}
+                      onChange={(e) => {
+                        const category = e.target.value;
+                        setNewItem({
+                          ...newItem,
+                          category,
+                          code: "",
+                          name: "",
+                        });
+                      }}
+                      required
+                    >
+                      <option value="">Select Category</option>
+                      {categoryOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
 
-                <label>Item Name:</label>
-                <input
-                  name="name"
-                  value={newItem.name}
-                  onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                  required
-                />
+                    <label>Item Code:</label>
+                    <select
+                      name="code"
+                      value={newItem.code}
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        const selected = itemCodes[newItem.category]?.find(
+                          (i) => i.code === code
+                        );
+                        const unitsArr = unitOptions[code] || [];
+                        setNewItem({
+                          ...newItem,
+                          code,
+                          name: selected ? selected.name : "",
+                          units: unitsArr[0] || "",
+                        });
+                      }}
+                      required
+                      disabled={!newItem.category}
+                    >
+                      <option value="">Select Code</option>
+                      {newItem.category &&
+                        itemCodes[newItem.category].map((item) => (
+                          <option key={item.code} value={item.code}>
+                            {item.code}
+                          </option>
+                        ))}
+                    </select>
 
-                <label className="category-label">Category:</label>
-                <select
-                  name="category"
-                  value={newItem.category}
-                  onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
-                  className="category-select"
-                  required
-                >
-                  <option value="">Select Category</option>
-                  <option value="bread">bread</option>
-                  <option value="protein">protein</option>
-                  <option value="cheese">cheese</option>
-                  <option value="vegetable">vegetable</option>
-                  <option value="sauce">sauce</option>
-                  <option value="snack">snack</option>
-                  <option value="beverage">beverage</option>
-                  <option value="add-on">add-on</option>
-                </select>
-
-                <label className="units-label">Units:</label>
-                <select
-                  name="units"
-                  value={newItem.units}
-                  onChange={(e) => setNewItem({ ...newItem, units: e.target.value })}
-                  className="units-select"
-                  required
-                >
-                  <option value="">Select Units</option>
-                  <option value="pc">pc</option>
-                  <option value="g">g</option>
-                  <option value="ml">ml</option>
-                  <option value="kg">kg</option>
-                  <option value="btl">btl</option>
-                </select>
-
-                <label>Cost:</label>
-                <input
-                  name="cost"
-                  type="number"
-                  value={newItem.cost}
-                  onChange={(e) => setNewItem({ ...newItem, cost: e.target.value })}
-                  required
-                />
-
-                <label>Quantity:</label>
-                <input
-                  name="quantity"
-                  type="number"
-                  value={newItem.quantity}
-                  onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                  required
-                />
-
-                <label>Status:</label>
-                <select
-                  name="status"
-                  value={newItem.status}
-                  onChange={(e) => setNewItem({ ...newItem, status: e.target.value })}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-
+                    <label>Item Name:</label>
+                    <input name="name" value={newItem.name} readOnly required />
+                  </div>
+                  <div className="ingredients-form-col">
+                    <label>Quantity:</label>
+                    <input
+                      name="quantity"
+                      type="number"
+                      value={newItem.quantity}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, quantity: e.target.value })
+                      }
+                      required
+                    />
+                    <label>Units:</label>
+                    <select
+                      name="units"
+                      value={newItem.units}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, units: e.target.value })
+                      }
+                      required
+                      disabled={!newItem.code}
+                    >
+                      <option value="">Select Unit</option>
+                      {newItem.code &&
+                        unitOptions[newItem.code]?.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                    </select>
+                    <label>Cost:</label>
+                    <input
+                      name="cost"
+                      type="number"
+                      value={newItem.cost}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, cost: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
                 <div className="modal-actions adduser-actions">
-                  <button type="button" className="btn-cancel" onClick={() => setShowForm(false)}>
-                    Cancel
-                  </button>
                   <button type="submit" className="btn-confirm">
                     Confirm
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => setShowForm(false)}
+                  >
+                    Cancel
                   </button>
                 </div>
               </form>
@@ -312,96 +465,107 @@ export default function IngredientsDashboard() {
         {/* Edit Item Modal */}
         {showEditModal && editItem && (
           <div className="modal-bg">
-            <div className="adduser-modal">
+            <div className="ingredients-modal">
               <div className="adduser-header-bar">
                 <span className="adduser-title">EDIT ITEM</span>
               </div>
               <form className="adduser-form" onSubmit={handleEditSubmit}>
-                <label>Item Code:</label>
-                <input
-                  name="code"
-                  value={editValues.code}
-                  onChange={handleEditChange}
-                  required
-                />
+                <div className="ingredients-form-row">
+                  <div className="ingredients-form-col">
+                    <label>Category:</label>
+                    <select
+                      name="category"
+                      value={editValues.category}
+                      disabled
+                      required
+                    >
+                      <option value="">Select Category</option>
+                      {categoryOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
 
-                <label>Item Name:</label>
-                <input
-                  name="name"
-                  value={editValues.name}
-                  onChange={handleEditChange}
-                  required
-                />
+                    <label>Item Code:</label>
+                    <select
+                      name="code"
+                      value={editValues.code}
+                      disabled
+                      required
+                    >
+                      <option value="">Select Code</option>
+                      {editValues.category &&
+                        itemCodes[editValues.category].map((item) => (
+                          <option key={item.code} value={item.code}>
+                            {item.code}
+                          </option>
+                        ))}
+                    </select>
 
-                <label className="category-label">Category:</label>
-                <select
-                  name="category"
-                  value={editValues.category}
-                  onChange={handleEditChange}
-                  className="category-select"
-                  required
-                >
-                  <option value="">Select Category</option>
-                  <option value="bread">bread</option>
-                  <option value="protein">protein</option>
-                  <option value="cheese">cheese</option>
-                  <option value="vegetable">vegetable</option>
-                  <option value="sauce">sauce</option>
-                  <option value="snack">snack</option>
-                  <option value="beverage">beverage</option>
-                  <option value="add-on">add-on</option>
-                </select>
+                    <label>Item Name:</label>
+                    <input
+                      name="name"
+                      value={editValues.name}
+                      readOnly
+                      required
+                    />
 
-                <label className="units-label">Units:</label>
-                <select
-                  name="units"
-                  value={editValues.units}
-                  onChange={handleEditChange}
-                  className="units-select"
-                  required
-                >
-                  <option value="">Select Units</option>
-                  <option value="pc">pc</option>
-                  <option value="g">g</option>
-                  <option value="ml">ml</option>
-                  <option value="kg">kg</option>
-                  <option value="btl">btl</option>
-                </select>
-
-                <label>Cost:</label>
-                <input
-                  name="cost"
-                  type="number"
-                  value={editValues.cost}
-                  onChange={handleEditChange}
-                  required
-                />
-
-                <label>Quantity:</label>
-                <input
-                  name="quantity"
-                  type="number"
-                  value={editValues.quantity}
-                  onChange={handleEditChange}
-                  required
-                />
-
-                <label>Status:</label>
-                <select
-                  name="status"
-                  value={editValues.status}
-                  onChange={handleEditChange}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-
+                    <label>Status:</label>
+                    <select
+                      name="status"
+                      value={editValues.status}
+                      disabled
+                      required
+                    >
+                      <option value="Inactive">Inactive</option>
+                      <option value="Active">Active</option>
+                    </select>
+                  </div>
+                  <div className="ingredients-form-col">
+                    <label>Quantity:</label>
+                    <input
+                      name="quantity"
+                      type="number"
+                      value={editValues.quantity}
+                      onChange={handleEditChange}
+                      required
+                    />
+                    <label>Units:</label>
+                    <select
+                      name="units"
+                      value={editValues.units}
+                      disabled
+                      required
+                    >
+                      <option value="">Select Unit</option>
+                      {editValues.code &&
+                        unitOptions[editValues.code]?.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                    </select>
+                    <label>Cost:</label>
+                    <input
+                      name="cost"
+                      type="number"
+                      value={editValues.cost}
+                      onChange={handleEditChange}
+                      required
+                    />
+                  </div>
+                </div>
                 <div className="modal-actions adduser-actions">
-                  <button type="button" className="btn-cancel" onClick={() => setShowEditModal(false)}>
-                    Cancel
-                  </button>
                   <button type="submit" className="btn-confirm">
                     Confirm
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => setShowEditModal(false)}
+                  >
+                    Cancel
                   </button>
                 </div>
               </form>

@@ -1,9 +1,11 @@
 /* Add User Modal Header Bar to match Menu Management */
 /*.adduser-header-bar {
-  background: #fcd949;
+  background: linear-gradient(90deg, #fcd949 60%, #fffbe6 100%);
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
+  text-align: center;
   padding: 18px 0 10px 0;
+  margin: -18px -12px 18px -12px;
   text-align: center;
   margin: -18px -12px 18px -12px;
 }
@@ -20,54 +22,59 @@
   text-transform: uppercase;
   font-size: 1.4rem;
   font-weight: 700;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   letter-spacing: 1px;
   text-align: center;
-  color: #222;
+  color: #5a2c0e;
+  font-family: "Fredoka One", Arial, sans-serif;
 }
 /* Add User Modal (styled like Menu Management) */
 .adduser-modal {
-  background: #fff;
-  border-radius: 16px;
-  padding: 18px 12px;
-  width: 95%;
-  max-width: 320px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
-  font-family: Arial, sans-serif;
-  text-align: center;
+  background: #fff !important;
+  border-radius: 16px !important;
+  padding: 18px 12px !important;
+  width: 95% !important;
+  max-width: 320px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18) !important;
+  font-family: Arial, sans-serif !important;
+  text-align: center !important;
 }
 .adduser-form label {
   display: block;
   font-weight: 600;
   text-align: left;
-  margin: 14px 0 6px;
+  margin: 18px 0 8px 4px;
+  font-size: 1rem;
 }
 .adduser-form input,
 .adduser-form select {
-  width: 90%;
-  padding: 6px 8px;
-  border: 1px solid #ccc;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
   display: block;
   border-radius: 8px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   outline: none;
   margin-top: 4px;
-  margin-bottom: 11px;
+  margin-bottom: 16px;
+  background: #fffbe6;
 }
 .adduser-actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 24px;
+  gap: 16px;
+  margin-top: 32px;
 }
 .btn-cancel,
 .btn-confirm {
-  padding: 8px 22px;
+  padding: 10px 28px;
   font-weight: 700;
   border: none;
   border-radius: 20px;
-  font-size: 1rem;
+  font-size: 1.05rem;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .btn-cancel {
   background: #e53935;
@@ -99,24 +106,24 @@
   transition: transform 0.3s ease;
   display: flex;
   flex-direction: column;
-    height: 89vh;
+  height: 5vh;
 }
 
 @media (max-width: 1024px) {
-    .ops-sidebar {
-        height: auto;
-        min-height: 100vh;
-        padding-bottom: 24px;
-    }
-    .sidebar-nav-links {
-        flex: unset;
-    }
-    .ops-sidebar .logout {
-        margin-top: 24px;
-        margin-bottom: 0;
-        align-self: flex-start;
-        width: 100%;
-    }
+  .ops-sidebar {
+    height: auto;
+    min-height: 100vh;
+    padding-bottom: 24px;
+  }
+  .sidebar-nav-links {
+    flex: unset;
+  }
+  .ops-sidebar .logout {
+    margin-top: 24px;
+    margin-bottom: 0;
+    align-self: flex-start;
+    width: 100%;
+  }
 }
 .ops-sidebar .ops-logo {
   font-size: 1.4rem;
@@ -182,8 +189,8 @@
   cursor: pointer;
   transition: background 0.2s;
 }
-.add-btn:hover { 
-  background: #ffb02e; 
+.add-btn:hover {
+  background: #ffb02e;
 }
 /* Controls */
 .ops-controls {
@@ -202,7 +209,7 @@
 .table-wrap {
   background: #fff;
   border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   overflow-x: auto;
 }
 .ops-table {
@@ -217,15 +224,26 @@
   font-size: 0.9rem;
   color: #000;
 }
-.ops-table tr:hover { background: #ffb02e; }
+.ops-table tr:hover {
+  background: #ffb02e;
+}
 .status {
   padding: 0.25rem 0.6rem;
   border-radius: 12px;
   font-size: 0.8rem;
 }
-.status.active   { background: #a7f3d0; color: #065f46; }
-.status.inactive { background: #ef6c6c; color: #fff; }
-.status.banned   { background: #e53935; color: #fff; }
+.status.active {
+  background: #a7f3d0;
+  color: #065f46;
+}
+.status.inactive {
+  background: #ef6c6c;
+  color: #fff;
+}
+.status.banned {
+  background: #e53935;
+  color: #fff;
+}
 .edit {
   background: none;
   border: none;
@@ -236,7 +254,8 @@
 }
 
 /* Ensure sidebar icons are always clickable */
-.ops-sidebar .nav-item, .ops-sidebar .logout {
+.ops-sidebar .nav-item,
+.ops-sidebar .logout {
   pointer-events: auto;
   position: relative;
   z-index: 2;
@@ -245,8 +264,11 @@
 /* Modals (use adduser-modal styles for both add and edit) */
 .modal-bg {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.3);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -259,7 +281,17 @@
   padding: 18px 12px;
   width: 95%;
   max-width: 320px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+.adminboard-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 12px;
+  width: 95%;
+  max-width: 320px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   font-family: Arial, sans-serif;
   text-align: center;
 }
@@ -268,7 +300,6 @@
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
   text-align: center;
-
 }
 .adduser-title {
   text-transform: uppercase;
@@ -358,4 +389,8 @@
 .unban-btn:hover {
   background: #15803d;
 }
-.error { color: red; margin-top: 0.5rem; text-align: center; }
+.error {
+  color: red;
+  margin-top: 0.5rem;
+  text-align: center;
+}

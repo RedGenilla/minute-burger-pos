@@ -17,9 +17,12 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import { UserAuth } from "../authenticator/AuthContext";
 import "./SalesReport.css";
 
 // Helper to format dates
@@ -28,6 +31,7 @@ function formatDate(date) {
 }
 
 export default function SalesReport() {
+  const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -49,6 +53,15 @@ export default function SalesReport() {
 
   // Active tab: 'sales' or 'summary'
   const [tab, setTab] = useState("sales");
+  // Refs for PDF export
+  const salesRef = useRef(null);
+  const summaryRef = useRef(null);
+
+  useEffect(() => {
+    if (session === null) {
+      window.location.href = "/login";
+    }
+  }, [session]);
 
   // Fetch orders and total sales whenever date range changes
   useEffect(() => {
@@ -225,36 +238,29 @@ export default function SalesReport() {
     return acc + (item.revenue - unitCost * item.count);
   }, 0);
 
-  // Export data helper
-  const handleExport = () => {
-    const dataStr =
-      tab === "sales"
-        ? JSON.stringify({ orders, bestSellers }, null, 2)
-        : JSON.stringify(
-            {
-              summary: bestSellers.map((item) => {
-                const unitCost = menuIngredientCosts[item.name] || 0;
-                return {
-                  name: item.name,
-                  quantity_sold: item.count,
-                  unit_price: item.count > 0 ? item.revenue / item.count : 0,
-                  total_sales: item.revenue,
-                  unit_cost: unitCost,
-                  profit: item.revenue - unitCost * item.count,
-                };
-              }),
-            },
-            null,
-            2
-          );
-
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = tab === "sales" ? "sales-report.json" : "table-summary.json";
-    a.click();
-    URL.revokeObjectURL(url);
+  // Export data as PDF
+  const handleExport = async () => {
+    let exportRef = tab === "sales" ? salesRef : summaryRef;
+    const element = exportRef.current;
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { scale: 2 });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: "a4",
+      });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      // Calculate image dimensions to fit A4
+      const imgWidth = pageWidth - 40;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 20, 20, imgWidth, imgHeight);
+      pdf.save(tab === "sales" ? "sales-report.pdf" : "table-summary.pdf");
+    } catch (err) {
+      alert("Failed to export PDF: " + err.message);
+    }
   };
 
   return (
@@ -275,15 +281,16 @@ export default function SalesReport() {
           <a href="/admin/sales-report" className="nav-item active">
             Sales Report
           </a>
-        </nav>
-        <div className="sidebar-logout-wrap">
           <button
             className="nav-item logout"
-            onClick={() => navigate("/login")}
+            onClick={async () => {
+              await signOut();
+              window.location.href = "/login";
+            }}
           >
             Log out
           </button>
-        </div>
+        </nav>
       </aside>
 
       {/* Main Content */}
@@ -339,7 +346,7 @@ export default function SalesReport() {
 
         {/* Tab Content */}
         {tab === "sales" ? (
-          <div className="salesreport-row-flex">
+          <div ref={salesRef} className="salesreport-row-flex">
             {/* Metrics Column */}
             <div className="salesreport-metrics-col">
               <div className="salesreport-metric-card">
@@ -445,7 +452,7 @@ export default function SalesReport() {
             </div>
           </div>
         ) : (
-          <div className="salesreport-summary-tab">
+          <div ref={summaryRef} className="salesreport-summary-tab">
             <h2>Table Summary</h2>
             <div className="salesreport-summary-table-wrapper">
               <table className="salesreport-summary-table">

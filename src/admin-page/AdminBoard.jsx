@@ -11,7 +11,7 @@ import logoutIcon from "../assets/logout.png";
 import sidebarIcon from "../assets/sidebar.png";
 
 export default function AdminBoard() {
-  const { signOut } = UserAuth();
+  const { signOut, session } = UserAuth();
   const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
@@ -32,6 +32,13 @@ export default function AdminBoard() {
     role: "Staff",
     status: "Inactive",
   });
+
+  // Redirect to login if session is null (user is not authenticated)
+  useEffect(() => {
+    if (session === null) {
+      window.location.href = "/login";
+    }
+  }, [session]);
 
   // fetch & subscribe
   useEffect(() => {
@@ -152,18 +159,16 @@ export default function AdminBoard() {
           <a href="/admin/sales-report" className="nav-item">
             Sales Report
           </a>
-        </nav>
-        <div className="sidebar-logout-wrap">
           <button
             className="nav-item logout"
             onClick={async () => {
               await signOut();
-              navigate("/login");
+              window.location.href = "/login";
             }}
           >
             Log out
           </button>
-        </div>
+        </nav>
       </aside>
 
       {/* Main */}
@@ -237,7 +242,7 @@ export default function AdminBoard() {
         {/* Add User Modal */}
         {showForm && (
           <div className="modal-bg">
-            <div className="adduser-modal">
+            <div className="adminboard-modal">
               <div className="adduser-header-bar">
                 <span className="adduser-title">ADD USER</span>
               </div>
@@ -286,6 +291,9 @@ export default function AdminBoard() {
                 </select>
 
                 <div className="modal-actions adduser-actions">
+                  <button type="submit" className="btn-confirm">
+                    Confirm
+                  </button>
                   <button
                     type="button"
                     className="btn-cancel"
@@ -293,9 +301,7 @@ export default function AdminBoard() {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn-confirm">
-                    Confirm
-                  </button>
+                  
                 </div>
               </form>
             </div>
@@ -305,7 +311,7 @@ export default function AdminBoard() {
         {/* Edit User Modal */}
         {showEditModal && editUser && (
           <div className="modal-bg">
-            <div className="adduser-modal">
+            <div className="adminboard-modal">
               <div className="adduser-header-bar">
                 <span className="adduser-title">EDIT USER</span>
               </div>
