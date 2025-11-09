@@ -5,6 +5,48 @@ import { UserAuth } from "../authenticator/AuthContext";
 import "./MenuManagement.css";
 
 export default function MenuBoard() {
+  // Place order and deduct ingredients
+  const placeOrder = async (menuItemId, quantity = 1) => {
+    // Find the menu item
+    const menuItem = menuItems.find((item) => item.id === menuItemId);
+    if (!menuItem) {
+      alert("Menu item not found.");
+      return;
+    }
+    // Parse ingredients
+    let ingredients = [];
+    try {
+      ingredients =
+        typeof menuItem.ingredients_item === "string"
+          ? JSON.parse(menuItem.ingredients_item)
+          : menuItem.ingredients_item || [];
+    } catch {
+      ingredients = [];
+    }
+    // Add order to orders table (store menu item details in order_items JSON array)
+    const orderItems = [
+      {
+        menu_item_id: menuItemId,
+        item_name: menuItem.item_name,
+        quantity,
+        ingredients: ingredients,
+      },
+    ];
+    const { error: orderError } = await supabase.from("orders").insert([
+      {
+        order_items: JSON.stringify(orderItems),
+        created_at: new Date().toISOString(),
+        // Add other fields as needed (user_id, total_price, status, payment_type, etc.)
+      },
+    ]);
+    if (orderError) {
+      alert("Failed to place order: " + orderError.message);
+      return;
+    }
+    // Deduction logic removed. Only order recording happens here.
+    alert("Order placed.");
+    setRefreshMenu((prev) => !prev);
+  };
   // Ingredient list for dropdown
   const [ingredientOptions, setIngredientOptions] = useState([]);
   const { session } = UserAuth();
@@ -46,29 +88,7 @@ export default function MenuBoard() {
   // Ingredient handlers for edit modal
   const handleEditModalIngredientChange = async (e) => {
     const { name, value } = e.target;
-    if (name === "amount" && editIngredientForm.name) {
-      // Fetch latest quantity from Supabase for selected ingredient
-      const { data: ingredientData, error: ingredientError } = await supabase
-        .from("ingredient-list")
-        .select("quantity")
-        .eq("name", editIngredientForm.name)
-        .single();
-      if (ingredientError || !ingredientData) {
-        setEditIngredientError("Could not fetch ingredient quantity.");
-      } else {
-        const availableQty = parseFloat(ingredientData.quantity) || 0;
-        const requestedQty = parseFloat(value) || 0;
-        if (requestedQty > availableQty) {
-          setEditIngredientError(
-            `Not enough inventory. Available: ${availableQty}`
-          );
-        } else {
-          setEditIngredientError("");
-        }
-      }
-    } else {
-      setEditIngredientError("");
-    }
+    setEditIngredientError("");
     setEditIngredientForm((prev) => ({ ...prev, [name]: value }));
   };
   const handleAddEditModalIngredient = () => {
@@ -96,22 +116,45 @@ export default function MenuBoard() {
       !editIngredientForm.unit
     )
       return;
-    if (editIngredientIndex !== null) {
-      setEditItem((prev) => ({
-        ...prev,
-        ingredients: prev.ingredients.map((ing, i) =>
-          i === editIngredientIndex ? editIngredientForm : ing
-        ),
-      }));
-    } else {
-      setEditItem((prev) => ({
-        ...prev,
-        ingredients: [...(prev.ingredients || []), editIngredientForm],
-      }));
-    }
-    setShowEditIngredientForm(false);
-    setEditIngredientForm({ name: "", amount: "", unit: "" });
-    setEditIngredientIndex(null);
+    // Fetch unit cost from Supabase ingredient-list
+    const fetchAndSetIngredient = async () => {
+      let unitCost = 0;
+      try {
+        const { data, error } = await supabase
+          .from("ingredient-list")
+          .select("name, cost")
+          .eq("name", editIngredientForm.name)
+          .single();
+        if (!error && data && data.cost) {
+          unitCost = parseFloat(data.cost);
+        }
+      } catch {}
+      const amount = parseFloat(editIngredientForm.amount);
+      const totalCost = unitCost * amount;
+      const newIngredient = {
+        name: editIngredientForm.name,
+        amount: editIngredientForm.amount,
+        unit: editIngredientForm.unit,
+        total_cost: totalCost.toFixed(2),
+      };
+      if (editIngredientIndex !== null) {
+        setEditItem((prev) => ({
+          ...prev,
+          ingredients: prev.ingredients.map((ing, i) =>
+            i === editIngredientIndex ? newIngredient : ing
+          ),
+        }));
+      } else {
+        setEditItem((prev) => ({
+          ...prev,
+          ingredients: [...(prev.ingredients || []), newIngredient],
+        }));
+      }
+      setShowEditIngredientForm(false);
+      setEditIngredientForm({ name: "", amount: "", unit: "" });
+      setEditIngredientIndex(null);
+    };
+    fetchAndSetIngredient();
   };
   const handleCancelEditIngredient = () => {
     setShowEditIngredientForm(false);
@@ -259,7 +302,7 @@ export default function MenuBoard() {
     setIngredientEditIndex(idx);
   };
 
-  const handleConfirmIngredient = () => {
+  const handleConfirmIngredient = async () => {
     if (
       !ingredientName.trim() ||
       !ingredientAmount.trim() ||
@@ -268,58 +311,48 @@ export default function MenuBoard() {
       setIngredientError("Please fill in all fields.");
       return;
     }
-    // Check if amount exceeds available inventory, considering already added
-    (async () => {
-      const { data: ingredientData, error: ingredientError } = await supabase
+    // Fetch unit cost from Supabase ingredient-list
+    let unitCost = 0;
+    try {
+      const { data, error } = await supabase
         .from("ingredient-list")
-        .select("quantity")
+        .select("name, cost")
         .eq("name", ingredientName)
         .single();
-      if (ingredientError || !ingredientData) {
-        setIngredientError("Could not fetch ingredient quantity.");
-        return;
+      if (!error && data && data.cost) {
+        unitCost = parseFloat(data.cost);
       }
-      const availableQty = parseFloat(ingredientData.quantity) || 0;
-      const requestedQty = parseFloat(ingredientAmount) || 0;
-      // Sum already added amounts for this ingredient (excluding edit index)
-      let alreadyAdded = 0;
-      newItem.ingredients.forEach((ing, idx) => {
-        if (ing.name === ingredientName && idx !== ingredientEditIndex) {
-          alreadyAdded += parseFloat(ing.amount) || 0;
-        }
-      });
-      const totalRequested = alreadyAdded + requestedQty;
-      if (totalRequested > availableQty) {
-        setIngredientError(`Not enough inventory. Available: ${availableQty}`);
-        return;
-      }
-      const newIngredient = {
-        name: ingredientName,
-        amount: ingredientAmount,
-        unit: ingredientUnit,
-      };
-      if (ingredientEditIndex !== null) {
-        // Edit existing ingredient
-        setNewItem((prev) => ({
-          ...prev,
-          ingredients: prev.ingredients.map((ing, i) =>
-            i === ingredientEditIndex ? newIngredient : ing
-          ),
-        }));
-      } else {
-        // Add new ingredient
-        setNewItem((prev) => ({
-          ...prev,
-          ingredients: [...(prev.ingredients || []), newIngredient],
-        }));
-      }
-      setIngredientName("");
-      setIngredientAmount("");
-      setIngredientUnit("");
-      setIngredientEditIndex(null);
-      setShowIngredientModal(false);
-      setIngredientError("");
-    })();
+    } catch {}
+
+    const amount = parseFloat(ingredientAmount);
+    const totalCost = unitCost * amount;
+    const newIngredient = {
+      name: ingredientName,
+      amount: ingredientAmount,
+      unit: ingredientUnit,
+      total_cost: totalCost.toFixed(2),
+    };
+    if (ingredientEditIndex !== null) {
+      // Edit existing ingredient
+      setNewItem((prev) => ({
+        ...prev,
+        ingredients: prev.ingredients.map((ing, i) =>
+          i === ingredientEditIndex ? newIngredient : ing
+        ),
+      }));
+    } else {
+      // Add new ingredient
+      setNewItem((prev) => ({
+        ...prev,
+        ingredients: [...(prev.ingredients || []), newIngredient],
+      }));
+    }
+    setIngredientName("");
+    setIngredientAmount("");
+    setIngredientUnit("");
+    setIngredientEditIndex(null);
+    setShowIngredientModal(false);
+    setIngredientError("");
   };
 
   const handleCancelIngredient = () => {
@@ -398,26 +431,7 @@ export default function MenuBoard() {
         ingredients_item: JSON.stringify(newItem.ingredients),
       },
     ]);
-    // Subtract ingredient quantities in inventory
-    if (!menuError && Array.isArray(newItem.ingredients)) {
-      for (const ing of newItem.ingredients) {
-        // Find ingredient by name and subtract amount
-        const { data: ingredientData, error: ingredientError } = await supabase
-          .from("ingredient-list")
-          .select("id, quantity")
-          .eq("name", ing.name)
-          .single();
-        if (!ingredientError && ingredientData) {
-          const newQty =
-            (parseFloat(ingredientData.quantity) || 0) -
-            (parseFloat(ing.amount) || 0);
-          await supabase
-            .from("ingredient-list")
-            .update({ quantity: newQty < 0 ? 0 : newQty })
-            .eq("id", ingredientData.id);
-        }
-      }
-    }
+    // Do NOT subtract ingredient quantities in inventory here
     setShowForm(false);
     setNewItem({
       item_name: "",
@@ -503,6 +517,8 @@ export default function MenuBoard() {
 
   return (
     <div className="opswat-admin">
+      {/* Example usage: Place order for first menu item (for testing) */}
+      {/* <button onClick={() => placeOrder(menuItems[0]?.id, 1)}>Test Order (Deduct Ingredients)</button> */}
       {/* Sidebar */}
       <aside className={`ops-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="ops-logo">Minute Admin</div>
@@ -636,6 +652,7 @@ export default function MenuBoard() {
                       )}
                       <input
                         id="menu-image-input"
+                        name="image"
                         type="file"
                         accept="image/*"
                         className="upload-input-hidden"
@@ -829,7 +846,7 @@ export default function MenuBoard() {
                               <label>Name</label>
                               <select
                                 value={ingredientName}
-                                onChange={async (e) => {
+                                onChange={(e) => {
                                   setIngredientName(e.target.value);
                                   setIngredientAmount("");
                                   setIngredientUnit("");
@@ -849,51 +866,8 @@ export default function MenuBoard() {
                               <input
                                 type="number"
                                 value={ingredientAmount}
-                                onChange={async (e) => {
-                                  const value = e.target.value;
-                                  setIngredientAmount(value);
-                                  if (!ingredientName || !value) {
-                                    setIngredientError("");
-                                    return;
-                                  }
-                                  // Fetch inventory for selected ingredient
-                                  const {
-                                    data: ingredientData,
-                                    error: ingredientError,
-                                  } = await supabase
-                                    .from("ingredient-list")
-                                    .select("quantity")
-                                    .eq("name", ingredientName)
-                                    .single();
-                                  if (ingredientError || !ingredientData) {
-                                    setIngredientError(
-                                      "Could not fetch ingredient quantity."
-                                    );
-                                    return;
-                                  }
-                                  const availableQty =
-                                    parseFloat(ingredientData.quantity) || 0;
-                                  const requestedQty = parseFloat(value) || 0;
-                                  // Sum already added amounts for this ingredient (excluding edit index)
-                                  let alreadyAdded = 0;
-                                  newItem.ingredients.forEach((ing, idx) => {
-                                    if (
-                                      ing.name === ingredientName &&
-                                      idx !== ingredientEditIndex
-                                    ) {
-                                      alreadyAdded +=
-                                        parseFloat(ing.amount) || 0;
-                                    }
-                                  });
-                                  const remainingQty =
-                                    availableQty - alreadyAdded;
-                                  if (requestedQty > remainingQty) {
-                                    setIngredientError(
-                                      `Only ${remainingQty} left in Inventory.`
-                                    );
-                                  } else {
-                                    setIngredientError("");
-                                  }
+                                onChange={(e) => {
+                                  setIngredientAmount(e.target.value);
                                 }}
                                 placeholder=""
                               />
@@ -932,17 +906,11 @@ export default function MenuBoard() {
                                 })()}
                               </select>
                             </div>
-                            {ingredientError && (
-                              <p style={{ color: "red", fontSize: "0.8rem" }}>
-                                {ingredientError}
-                              </p>
-                            )}
                             <div className="modal-actions">
                               <button
                                 type="button"
                                 className="btn-confirm"
                                 onClick={handleConfirmIngredient}
-                                disabled={!!ingredientError}
                               >
                                 Add
                               </button>

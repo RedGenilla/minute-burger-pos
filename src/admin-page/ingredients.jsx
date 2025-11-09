@@ -121,6 +121,63 @@ const unitOptions = {
 };
 
 export default function IngredientsDashboard() {
+  // Place order and deduct ingredients directly using Supabase client
+  // orderData: { user_id, order_items, total_price, payment_type }
+  const placeOrderAndDeduct = async (orderData) => {
+    try {
+      // Insert order
+      const { error: orderError } = await supabase.from("orders").insert({
+        user_id: orderData.user_id,
+        order_items: JSON.stringify(orderData.order_items),
+        total_price: orderData.total_price,
+        payment_type: orderData.payment_type,
+        status: "pending",
+        created_at: new Date().toISOString(),
+      });
+      if (orderError) {
+        alert("Error placing order: " + orderError.message);
+        return;
+      }
+
+      // Aggregate ingredient totals
+      const ingredientTotals = {};
+      for (const item of orderData.order_items) {
+        if (!Array.isArray(item.ingredients)) continue;
+        for (const ing of item.ingredients) {
+          const key = `${ing.name}__${ing.units}`;
+          const amount = Number(ing.amount) * Number(item.quantity);
+          ingredientTotals[key] = (ingredientTotals[key] || 0) + amount;
+        }
+      }
+
+      // Deduct each unique ingredient from inventory
+      for (const key in ingredientTotals) {
+        const [name, units] = key.split("__");
+        // Fetch ingredient row
+        const { data: invData, error: invError } = await supabase
+          .from("ingredient-list")
+          .select("id, quantity")
+          .eq("name", name)
+          .eq("units", units)
+          .single();
+        if (invError || !invData) continue;
+        const currentQty = Number(invData.quantity) || 0;
+        const deductQty = Number(ingredientTotals[key]);
+        const newQty = Math.max(currentQty - deductQty, 0);
+        await supabase
+          .from("ingredient-list")
+          .update({ quantity: newQty })
+          .eq("id", invData.id);
+      }
+
+      alert("Order placed and inventory updated.");
+      await fetchItems(); // Refresh inventory
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+  // ...existing code...
+
   const { signOut } = UserAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [items, setItems] = useState([]);
