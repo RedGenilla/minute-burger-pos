@@ -67,176 +67,133 @@ export default function SalesReport() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-
       try {
-        // Convert date strings to proper timestamps for comparison
-        const startDateTime = new Date(
-          startDate + "T00:00:00.000Z"
-        ).toISOString();
-        const endDateTime = new Date(endDate + "T23:59:59.999Z").toISOString();
-
-        // 1️⃣ Fetch orders from orders table
+        // Fetch all orders
         const { data: ordersData, error: ordersError } = await supabase
           .from("orders")
-          .select("id, created_at, order_items, total_price")
-          .gte("created_at", startDateTime)
-          .lte("created_at", endDateTime)
-          .order("created_at", { ascending: false });
-
-        if (ordersError) {
-          setOrders([]);
-          setBestSellers([]);
-        } else {
-          setOrders(ordersData || []);
-        }
-
-        // 2️⃣ Fetch menu-list with ingredients_item for cost calculation
+          .select("id, total_price");
+        setOrders(ordersData || []);
+        // Fetch menu-list
         const { data: menuListData, error: menuListError } = await supabase
           .from("menu-list")
-          .select("id, item_name, price, ingredients_item");
-
-        if (menuListError) {
-        } else {
-          setMenuList(menuListData || []);
-        }
-
-        // 3️⃣ Build menu cost map from ingredients_item
+          .select("id, item_name, price");
+        setMenuList(menuListData || []);
+        // Build menu cost map from menu_ingredients
         const costMap = {};
-        if (menuListData) {
-          menuListData.forEach((menu) => {
-            let totalCost = 0;
-            let ingredients = menu.ingredients_item;
-
-            if (typeof ingredients === "string") {
-              try {
-                ingredients = JSON.parse(ingredients);
-              } catch {
-                ingredients = [];
-              }
-            }
-
-            if (Array.isArray(ingredients)) {
-              totalCost = ingredients.reduce(
-                (sum, ing) => sum + (parseFloat(ing.total_cost) || 0),
-                0
-              );
-            }
-            costMap[menu.item_name] = totalCost;
-          });
+        for (const menu of menuListData || []) {
+          const { data: menuIngredients } = await supabase
+            .from("menu_ingredients")
+            .select("total_cost")
+            .eq("menu_id", menu.id);
+          let totalCost = 0;
+          if (menuIngredients) {
+            totalCost = menuIngredients.reduce(
+              (sum, ing) => sum + (parseFloat(ing.total_cost) || 0),
+              0
+            );
+          }
+          costMap[menu.item_name] = totalCost;
         }
         setMenuIngredientCosts(costMap);
 
-        // 4️⃣ Process orders data to count products
-        // 4️⃣ Process orders data to count products - FIXED VERSION
-        if (ordersData && ordersData.length > 0) {
-          const productCount = {};
-          const productRevenue = {};
-
-          // Create a price map from menu list
-          const menuPriceMap = {};
-          if (menuListData) {
-            menuListData.forEach((menu) => {
-              menuPriceMap[menu.item_name] = parseFloat(menu.price) || 0;
-            });
-          }
-
-          console.log("🏷️ Menu prices:", menuPriceMap);
-
-          ordersData.forEach((order) => {
-            let items = order.order_items;
-            if (typeof items === "string") {
-              try {
-                items = JSON.parse(items);
-              } catch {
-                items = [];
-              }
-            }
-
-            if (Array.isArray(items)) {
-              items.forEach((item) => {
-                const itemName = item.item_name;
-                const quantity = item.quantity || 1;
-
-                // FIX: Use menu price since order_items doesn't have price field
-                const price = menuPriceMap[itemName] || 0;
-
-                console.log(
-                  `📦 ${itemName}: quantity=${quantity}, menu price=${price}, revenue=${
-                    price * quantity
-                  }`
-                );
-
-                productCount[itemName] =
-                  (productCount[itemName] || 0) + quantity;
-                productRevenue[itemName] =
-                  (productRevenue[itemName] || 0) + price * quantity;
-              });
-            }
-          });
-
-          // Sort by quantity sold
-          const sorted = Object.entries(productCount)
-            .map(([name, count]) => ({
-              name,
-              count,
-              revenue: productRevenue[name] || 0,
-            }))
-            .sort((a, b) => b.count - a.count);
-
-          console.log("✅ Fixed best sellers with revenue:", sorted);
-          setBestSellers(sorted);
-        } else {
-          setBestSellers([]);
+        // Fetch all order_items for the orders
+        const orderIds = (ordersData || []).map((order) => order.id);
+        let orderItemsData = [];
+        if (orderIds.length > 0) {
+          const { data: orderItems, error: orderItemsError } = await supabase
+            .from("order_items")
+            .select("id, order_id, menu_item_id, quantity, price")
+            .in("order_id", orderIds);
+          orderItemsData = orderItems || [];
         }
 
-        // 5️⃣ Calculate total sales
-        // 5️⃣ Calculate total sales - FIXED VERSION
+        // Build lookup maps for menu-list
+        const menuIdToName = {};
+        const menuIdToPrice = {};
+        (menuListData || []).forEach((menu) => {
+          menuIdToName[menu.id] = menu.item_name;
+          menuIdToPrice[menu.id] = parseFloat(menu.price) || 0;
+        });
+
+        // Count products and revenue
+        const productCount = {};
+        const productRevenue = {};
+        for (const item of orderItemsData) {
+          const menuId = item.menu_item_id;
+          const itemName = menuIdToName[menuId] || `Unknown (${menuId})`;
+          const price = menuIdToPrice[menuId] || 0;
+          const quantity = item.quantity || 1;
+          productCount[itemName] = (productCount[itemName] || 0) + quantity;
+          productRevenue[itemName] =
+            (productRevenue[itemName] || 0) + price * quantity;
+        }
+
+        // Add-ons (optional)
+        const addOnRevenue = {};
+        for (const item of orderItemsData) {
+          const { data: addOns } = await supabase
+            .from("order_item_add_ons")
+            .select("name, price")
+            .eq("order_item_id", item.id);
+          if (addOns) {
+            for (const addOn of addOns) {
+              addOnRevenue[addOn.name] =
+                (addOnRevenue[addOn.name] || 0) + parseFloat(addOn.price || 0);
+            }
+          }
+        }
+
+        // Combine products and add-ons
+        const allProducts = { ...productCount, ...addOnRevenue };
+        const allRevenue = { ...productRevenue, ...addOnRevenue };
+        const sorted = Object.entries(allProducts)
+          .map(([name, count]) => ({
+            name,
+            count: productCount[name] || 0,
+            revenue: allRevenue[name] || 0,
+            isAddOn: !!addOnRevenue[name],
+          }))
+          .sort((a, b) => b.revenue - a.revenue);
+
+        setBestSellers(sorted);
+        console.log("Best sellers computed:", sorted);
+
+        // Calculate total sales
         let totalSalesValue = 0;
         if (ordersData && ordersData.length > 0) {
-          // Use total_price from orders table since it's available and correct
           totalSalesValue = ordersData.reduce(
             (acc, order) => acc + (parseFloat(order.total_price) || 0),
             0
           );
-          console.log(
-            "💰 Total sales from orders.total_price:",
-            totalSalesValue
-          );
         }
         setTotalSales(totalSalesValue);
       } catch (error) {
+        console.error("Error in fetchData for SalesReport:", error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, [startDate, endDate]);
+  }, []);
 
   // Calculate summary values
-  const totalOrders = orders.length;
-  let totalItemsSold = 0;
-  orders.forEach((order) => {
-    let items = order.order_items;
-    if (typeof items === "string") {
-      try {
-        items = JSON.parse(items);
-      } catch {
-        items = [];
-      }
-    }
-    if (Array.isArray(items)) {
-      items.forEach((item) => {
-        totalItemsSold += item.quantity || 1;
-      });
-    }
-  });
+  // Calculate summary values
+  const totalOrders = orders && orders.length ? orders.length : 0;
+  // Total items sold: sum of all counts from bestSellers
+  const totalItemsSold = bestSellers.reduce((acc, item) => acc + item.count, 0);
 
   // Calculate total profit from best sellers
-  const totalProfit = bestSellers.reduce((acc, item) => {
-    const unitCost = menuIngredientCosts[item.name] || 0;
-    return acc + (item.revenue - unitCost * item.count);
-  }, 0);
+  // Total profit: sum of (revenue - cost) for each menu item (exclude add-ons)
+  const totalProfit =
+    bestSellers && bestSellers.length > 0
+      ? bestSellers.reduce((acc, item) => {
+          if (!item.isAddOn) {
+            const unitCost = menuIngredientCosts[item.name] || 0;
+            return acc + (item.revenue - unitCost * item.count);
+          }
+          return acc;
+        }, 0)
+      : 0;
 
   // Export data as PDF
   const handleExport = async () => {
@@ -475,26 +432,28 @@ export default function SalesReport() {
                       </td>
                     </tr>
                   ) : (
-                    bestSellers.map((item, idx) => {
-                      // Calculate average unit price from actual orders data
-                      const unitPrice =
-                        item.count > 0 ? item.revenue / item.count : 0;
-                      const totalSales = item.revenue;
-                      const unitCost = menuIngredientCosts[item.name] || 0;
-                      const profit = totalSales - unitCost * item.count;
+                    bestSellers
+                      .filter((item) => !item.isAddOn)
+                      .map((item, idx) => {
+                        // Calculate average unit price from actual orders data
+                        const unitPrice =
+                          item.count > 0 ? item.revenue / item.count : 0;
+                        const totalSales = item.revenue;
+                        const unitCost = menuIngredientCosts[item.name] || 0;
+                        const profit = totalSales - unitCost * item.count;
 
-                      return (
-                        <tr key={item.name}>
-                          <td>{idx + 1}</td>
-                          <td>{item.name}</td>
-                          <td>{item.count}</td>
-                          <td>₱{unitPrice.toFixed(2)}</td>
-                          <td>₱{totalSales.toFixed(2)}</td>
-                          <td>₱{unitCost.toFixed(2)}</td>
-                          <td>₱{profit.toFixed(2)}</td>
-                        </tr>
-                      );
-                    })
+                        return (
+                          <tr key={item.name}>
+                            <td>{idx + 1}</td>
+                            <td>{item.name}</td>
+                            <td>{item.count}</td>
+                            <td>₱{unitPrice.toFixed(2)}</td>
+                            <td>₱{totalSales.toFixed(2)}</td>
+                            <td>₱{unitCost.toFixed(2)}</td>
+                            <td>₱{profit.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })
                   )}
                 </tbody>
                 {bestSellers.length > 0 && (

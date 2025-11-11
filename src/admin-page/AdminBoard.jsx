@@ -77,7 +77,16 @@ export default function AdminBoard() {
       }
       // Only insert into users table if signUp succeeded
       const hashed = bcrypt.hashSync(newUser.password, 10);
-      await supabase.from("users").insert([{ ...newUser, password: hashed }]);
+      await supabase.from("users").insert([
+        {
+          id: data.user.id, // Use Auth UUID as id
+          username: newUser.username,
+          email: newUser.email,
+          password: hashed,
+          role: newUser.role,
+          status: newUser.status,
+        },
+      ]);
       alert(
         "User created! Verification email sent. Please check the user's inbox."
       );
@@ -301,7 +310,6 @@ export default function AdminBoard() {
                   >
                     Cancel
                   </button>
-                  
                 </div>
               </form>
             </div>

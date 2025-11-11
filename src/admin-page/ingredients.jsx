@@ -121,53 +121,94 @@ const unitOptions = {
 };
 
 export default function IngredientsDashboard() {
-  // Place order and deduct ingredients directly using Supabase client
+  // Place order and deduct ingredients using normalized tables
   // orderData: { user_id, order_items, total_price, payment_type }
   const placeOrderAndDeduct = async (orderData) => {
     try {
-      // Insert order
-      const { error: orderError } = await supabase.from("orders").insert({
-        user_id: orderData.user_id,
-        order_items: JSON.stringify(orderData.order_items),
-        total_price: orderData.total_price,
-        payment_type: orderData.payment_type,
-        status: "pending",
-        created_at: new Date().toISOString(),
-      });
-      if (orderError) {
-        alert("Error placing order: " + orderError.message);
+      // 1. Insert order
+      const { data: orderInsert, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          user_id: orderData.user_id,
+          total_price: orderData.total_price,
+          payment_type: orderData.payment_type,
+          status: "pending",
+          created_at: new Date().toISOString(),
+        })
+        .select();
+      if (orderError || !orderInsert || !orderInsert[0]) {
+        alert(
+          "Error placing order: " + (orderError?.message || "No order inserted")
+        );
         return;
       }
+      const orderId = orderInsert[0].id;
 
-      // Aggregate ingredient totals
-      const ingredientTotals = {};
+      // 2. Insert order_items and get their IDs
       for (const item of orderData.order_items) {
-        if (!Array.isArray(item.ingredients)) continue;
-        for (const ing of item.ingredients) {
-          const key = `${ing.name}__${ing.units}`;
-          const amount = Number(ing.amount) * Number(item.quantity);
-          ingredientTotals[key] = (ingredientTotals[key] || 0) + amount;
+        const { data: itemInsert, error: itemError } = await supabase
+          .from("order_items")
+          .insert({
+            order_id: orderId,
+            menu_item_id: item.menu_item_id,
+            quantity: item.quantity,
+            price: item.price,
+            created_at: new Date().toISOString(),
+          })
+          .select();
+        if (itemError || !itemInsert || !itemInsert[0]) continue;
+        const orderItemId = itemInsert[0].id;
+
+        // 3. Insert order_item_ingredients for each ingredient
+        if (Array.isArray(item.ingredients)) {
+          for (const ing of item.ingredients) {
+            // Find ingredient_id from ingredient-list
+            const { data: ingData, error: ingError } = await supabase
+              .from("ingredient-list")
+              .select("id")
+              .eq("name", ing.name)
+              .single();
+            if (ingError || !ingData) continue;
+            await supabase.from("order_item_ingredients").insert({
+              order_item_id: orderItemId,
+              ingredient_id: ingData.id,
+              amount: Number(ing.amount) * Number(item.quantity),
+              created_at: new Date().toISOString(),
+            });
+          }
         }
       }
 
-      // Deduct each unique ingredient from inventory
-      for (const key in ingredientTotals) {
-        const [name, units] = key.split("__");
-        // Fetch ingredient row
-        const { data: invData, error: invError } = await supabase
-          .from("ingredient-list")
-          .select("id, quantity")
-          .eq("name", name)
-          .eq("units", units)
-          .single();
-        if (invError || !invData) continue;
-        const currentQty = Number(invData.quantity) || 0;
-        const deductQty = Number(ingredientTotals[key]);
-        const newQty = Math.max(currentQty - deductQty, 0);
-        await supabase
-          .from("ingredient-list")
-          .update({ quantity: newQty })
-          .eq("id", invData.id);
+      // 4. Deduct inventory based on order_item_ingredients
+      // Aggregate ingredient totals from order_item_ingredients for this order
+      const { data: usedIngredients, error: usedError } = await supabase
+        .from("order_items")
+        .select("id")
+        .eq("order_id", orderId);
+      if (!usedError && usedIngredients) {
+        for (const oi of usedIngredients) {
+          const { data: ingList, error: ingListError } = await supabase
+            .from("order_item_ingredients")
+            .select("ingredient_id, amount")
+            .eq("order_item_id", oi.id);
+          if (!ingListError && ingList) {
+            for (const ing of ingList) {
+              // Fetch current quantity
+              const { data: invData, error: invError } = await supabase
+                .from("ingredient-list")
+                .select("id, quantity")
+                .eq("id", ing.ingredient_id)
+                .single();
+              if (invError || !invData) continue;
+              const currentQty = Number(invData.quantity) || 0;
+              const newQty = Math.max(currentQty - Number(ing.amount), 0);
+              await supabase
+                .from("ingredient-list")
+                .update({ quantity: newQty })
+                .eq("id", invData.id);
+            }
+          }
+        }
       }
 
       alert("Order placed and inventory updated.");

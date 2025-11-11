@@ -5,48 +5,8 @@ import { UserAuth } from "../authenticator/AuthContext";
 import "./MenuManagement.css";
 
 export default function MenuBoard() {
-  // Place order and deduct ingredients
-  const placeOrder = async (menuItemId, quantity = 1) => {
-    // Find the menu item
-    const menuItem = menuItems.find((item) => item.id === menuItemId);
-    if (!menuItem) {
-      alert("Menu item not found.");
-      return;
-    }
-    // Parse ingredients
-    let ingredients = [];
-    try {
-      ingredients =
-        typeof menuItem.ingredients_item === "string"
-          ? JSON.parse(menuItem.ingredients_item)
-          : menuItem.ingredients_item || [];
-    } catch {
-      ingredients = [];
-    }
-    // Add order to orders table (store menu item details in order_items JSON array)
-    const orderItems = [
-      {
-        menu_item_id: menuItemId,
-        item_name: menuItem.item_name,
-        quantity,
-        ingredients: ingredients,
-      },
-    ];
-    const { error: orderError } = await supabase.from("orders").insert([
-      {
-        order_items: JSON.stringify(orderItems),
-        created_at: new Date().toISOString(),
-        // Add other fields as needed (user_id, total_price, status, payment_type, etc.)
-      },
-    ]);
-    if (orderError) {
-      alert("Failed to place order: " + orderError.message);
-      return;
-    }
-    // Deduction logic removed. Only order recording happens here.
-    alert("Order placed.");
-    setRefreshMenu((prev) => !prev);
-  };
+  // Place order logic should use normalized tables (handled elsewhere)
+  // ...existing code...
   // Ingredient list for dropdown
   const [ingredientOptions, setIngredientOptions] = useState([]);
   const { session } = UserAuth();
@@ -384,6 +344,22 @@ export default function MenuBoard() {
   }, [filter, showForm, refreshMenu]);
 
   // add item
+  // Helper to check ingredient availability
+  const checkIngredientsAvailability = async (ingredients) => {
+    // Get latest inventory from Supabase
+    const { data: inventory, error } = await supabase
+      .from("ingredient-list")
+      .select("name, quantity");
+    if (error || !inventory) return false;
+    for (const ing of ingredients) {
+      const inv = inventory.find((i) => i.name === ing.name);
+      if (!inv || Number(ing.amount) > Number(inv.quantity)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const addItem = async (e) => {
     e.preventDefault();
     // Validate required fields
@@ -397,6 +373,14 @@ export default function MenuBoard() {
     ) {
       alert("Please fill out all fields and upload an image.");
       return;
+    }
+    // Check ingredient availability
+    const isAvailable = await checkIngredientsAvailability(newItem.ingredients);
+    const itemStatus = isAvailable ? "Active" : "Inactive";
+    if (!isAvailable) {
+      alert(
+        "One or more ingredients exceed inventory. Item will be set to Inactive."
+      );
     }
     // Upload image to Supabase Storage
     let image_url = null;
@@ -420,18 +404,60 @@ export default function MenuBoard() {
         .getPublicUrl(fileName);
       image_url = publicUrlData.publicUrl;
     }
-    const { error: menuError } = await supabase.from("menu-list").insert([
-      {
-        item_name: newItem.item_name,
-        category: newItem.category,
-        price: newItem.price,
-        status: newItem.status,
-        description: newItem.description,
-        image_url: image_url,
-        ingredients_item: JSON.stringify(newItem.ingredients),
-      },
-    ]);
-    // Do NOT subtract ingredient quantities in inventory here
+    // Insert menu item
+    const { data: menuInsert, error: menuError } = await supabase
+      .from("menu-list")
+      .insert([
+        {
+          item_name: newItem.item_name,
+          category: newItem.category,
+          price: newItem.price,
+          status: itemStatus,
+          description: newItem.description,
+          image_url: image_url,
+        },
+      ])
+      .select();
+    if (menuError || !menuInsert || !menuInsert[0]) {
+      alert(
+        "Failed to add menu item: " +
+          (menuError?.message || "No menu item inserted")
+      );
+      return;
+    }
+    const menuId = menuInsert[0].id;
+    // Insert ingredients into menu_ingredients
+    for (const ing of newItem.ingredients) {
+      // Find ingredient_id from ingredient-list
+      const { data: ingData, error: ingError } = await supabase
+        .from("ingredient-list")
+        .select("id")
+        .eq("name", ing.name)
+        .single();
+      if (ingError || !ingData) {
+        alert(
+          `Ingredient lookup failed for '${ing.name}': ${
+            ingError?.message || "Not found"
+          }`
+        );
+        continue;
+      }
+      const { error: menuIngError } = await supabase
+        .from("menu_ingredients")
+        .insert({
+          menu_id: menuId,
+          ingredient_id: ingData.id,
+          amount: Number(ing.amount),
+          unit: ing.unit,
+          total_cost: Number(ing.total_cost),
+          created_at: new Date().toISOString(),
+        });
+      if (menuIngError) {
+        alert(
+          `Failed to insert ingredient '${ing.name}' into menu_ingredients: ${menuIngError.message}`
+        );
+      }
+    }
     setShowForm(false);
     setNewItem({
       item_name: "",
@@ -442,7 +468,6 @@ export default function MenuBoard() {
       image: null,
       ingredients: [],
     });
-    // clear ingredient inline state too
     setShowIngredientForm(false);
     setIngredientForm({ name: "", amount: "", unit: "" });
     setEditIndex(null);
@@ -451,46 +476,77 @@ export default function MenuBoard() {
 
   // edit item
   const openEditModal = (m) => {
-    // ensure ingredients_item is array (maybe stored as JSON string in DB)
-    let normalized = { ...m };
-    try {
-      if (typeof normalized.ingredients_item === "string") {
-        normalized.ingredients_item = JSON.parse(normalized.ingredients_item);
+    // Fetch ingredients from menu_ingredients for this menu item
+    const fetchIngredients = async () => {
+      const { data: ingList, error: ingError } = await supabase
+        .from("menu_ingredients")
+        .select(
+          "ingredient_id, amount, unit, total_cost, ingredient-list(name)"
+        )
+        .eq("menu_id", m.id);
+      let ingredients = [];
+      if (!ingError && ingList) {
+        ingredients = ingList.map((ing) => ({
+          name: ing["ingredient-list"]?.name || "",
+          amount: ing.amount,
+          unit: ing.unit,
+          total_cost: ing.total_cost,
+        }));
       }
-    } catch {
-      normalized.ingredients_item = normalized.ingredients_item || [];
-    }
-    // for backward compatibility, fallback to ingredients if ingredients_item is missing
-    if (!normalized.ingredients_item && normalized.ingredients) {
-      try {
-        normalized.ingredients_item =
-          typeof normalized.ingredients === "string"
-            ? JSON.parse(normalized.ingredients)
-            : normalized.ingredients;
-      } catch {
-        normalized.ingredients_item = [];
-      }
-    }
-    setEditItem({ ...normalized });
-    setShowEditModal(true);
+      setEditItem({ ...m, ingredients });
+      setShowEditModal(true);
+    };
+    fetchIngredients();
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setEditLoading(true);
+    // Check ingredient availability
+    const isAvailable = await checkIngredientsAvailability(
+      editItem.ingredients
+    );
+    const itemStatus = isAvailable ? "Active" : "Inactive";
+    if (!isAvailable) {
+      alert(
+        "One or more ingredients exceed inventory. Item will be set to Inactive."
+      );
+    }
+    // Update menu-list
     const { error } = await supabase
       .from("menu-list")
       .update({
         item_name: editItem.item_name,
         category: editItem.category,
         price: editItem.price,
-        status: editItem.status,
+        status: itemStatus,
         description: editItem.description,
-        ingredients_item: JSON.stringify(editItem.ingredients_item || []),
       })
       .eq("id", editItem.id);
     if (error) setEditError("Failed to update item");
     else {
+      // Remove old ingredients and insert new ones
+      await supabase
+        .from("menu_ingredients")
+        .delete()
+        .eq("menu_id", editItem.id);
+      for (const ing of editItem.ingredients) {
+        // Find ingredient_id from ingredient-list
+        const { data: ingData, error: ingError } = await supabase
+          .from("ingredient-list")
+          .select("id")
+          .eq("name", ing.name)
+          .single();
+        if (ingError || !ingData) continue;
+        await supabase.from("menu_ingredients").insert({
+          menu_id: editItem.id,
+          ingredient_id: ingData.id,
+          amount: Number(ing.amount),
+          unit: ing.unit,
+          total_cost: Number(ing.total_cost),
+          created_at: new Date().toISOString(),
+        });
+      }
       setShowEditModal(false);
       setRefreshMenu((prev) => !prev);
     }
@@ -506,7 +562,6 @@ export default function MenuBoard() {
   // Helper to get ingredients for display (handles both add and edit modals)
   const getIngredientsForDisplay = (item, isEdit) => {
     if (!item) return [];
-    if (isEdit) return item.ingredients_item || [];
     return item.ingredients || [];
   };
   useEffect(() => {
