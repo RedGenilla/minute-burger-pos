@@ -18,12 +18,13 @@ ChartJS.register(
   Legend
 );
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { UserAuth } from "../authenticator/AuthContext";
 import "./SalesReport.css";
+import AdminSidebar from "./AdminSidebar";
 
 // Helper to format dates
 function formatDate(date) {
@@ -31,9 +32,8 @@ function formatDate(date) {
 }
 
 export default function SalesReport() {
-  const { session, signOut } = UserAuth();
-  const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { session } = UserAuth();
+  // sidebar state handled by shared AdminSidebar
 
   // Date range state
   const [startDate, setStartDate] = useState(() => {
@@ -46,7 +46,7 @@ export default function SalesReport() {
   // Orders, best sellers, menu list, and total sales
   const [orders, setOrders] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
-  const [menuList, setMenuList] = useState([]);
+  const [, setMenuList] = useState([]);
   const [menuIngredientCosts, setMenuIngredientCosts] = useState({});
   const [loading, setLoading] = useState(false);
   const [totalSales, setTotalSales] = useState(0);
@@ -69,12 +69,12 @@ export default function SalesReport() {
       setLoading(true);
       try {
         // Fetch all orders
-        const { data: ordersData, error: ordersError } = await supabase
+        const { data: ordersData } = await supabase
           .from("orders")
           .select("id, total_price");
         setOrders(ordersData || []);
         // Fetch menu-list
-        const { data: menuListData, error: menuListError } = await supabase
+        const { data: menuListData } = await supabase
           .from("menu-list")
           .select("id, item_name, price");
         setMenuList(menuListData || []);
@@ -100,7 +100,7 @@ export default function SalesReport() {
         const orderIds = (ordersData || []).map((order) => order.id);
         let orderItemsData = [];
         if (orderIds.length > 0) {
-          const { data: orderItems, error: orderItemsError } = await supabase
+          const { data: orderItems } = await supabase
             .from("order_items")
             .select("id, order_id, menu_item_id, quantity, price")
             .in("order_id", orderIds);
@@ -147,7 +147,7 @@ export default function SalesReport() {
         const allProducts = { ...productCount, ...addOnRevenue };
         const allRevenue = { ...productRevenue, ...addOnRevenue };
         const sorted = Object.entries(allProducts)
-          .map(([name, count]) => ({
+          .map(([name]) => ({
             name,
             count: productCount[name] || 0,
             revenue: allRevenue[name] || 0,
@@ -209,7 +209,6 @@ export default function SalesReport() {
         format: "a4",
       });
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
       // Calculate image dimensions to fit A4
       const imgWidth = pageWidth - 40;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
@@ -223,32 +222,7 @@ export default function SalesReport() {
   return (
     <div className="opswat-admin">
       {/* Sidebar */}
-      <aside className={`ops-sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="ops-logo">Minute Admin</div>
-        <nav className="sidebar-nav-links">
-          <a href="/admin-user-management" className="nav-item">
-            User Management
-          </a>
-          <a href="/admin/menu-management" className="nav-item">
-            Menu Management
-          </a>
-          <a href="/admin/ingredients-dashboard" className="nav-item">
-            Inventory
-          </a>
-          <a href="/admin/sales-report" className="nav-item active">
-            Sales Report
-          </a>
-          <button
-            className="nav-item logout"
-            onClick={async () => {
-              await signOut();
-              window.location.href = "/login";
-            }}
-          >
-            Log out
-          </button>
-        </nav>
-      </aside>
+      <AdminSidebar active="sales-report" />
 
       {/* Main Content */}
       <main className="ops-main">

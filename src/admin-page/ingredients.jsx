@@ -1,15 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { UserAuth } from "../authenticator/AuthContext";
 import { supabase } from "../supabaseClient";
 import "./ingredients.css"; // Use the same CSS as MenuManagement for unified UI
-import menuIcon from "../assets/menu.png";
-import onlineIcon from "../assets/online.png";
-import salesIcon from "../assets/sales.png";
-import inventoryIcon from "../assets/inventory.png";
-import managementIcon from "../assets/management.png";
-import logoutIcon from "../assets/logout.png";
-import sidebarIcon from "../assets/sidebar.png";
-import homeIcon from "../assets/home.png";
+import AdminSidebar from "./AdminSidebar";
 
 const categoryOptions = [
   { value: "BR", label: "BR/Bread" },
@@ -123,7 +115,7 @@ const unitOptions = {
 export default function IngredientsDashboard() {
   // Place order and deduct ingredients using normalized tables
   // orderData: { user_id, order_items, total_price, payment_type }
-  const placeOrderAndDeduct = async (orderData) => {
+  const _placeOrderAndDeduct = async (orderData) => {
     try {
       // 1. Insert order
       const { data: orderInsert, error: orderError } = await supabase
@@ -219,8 +211,7 @@ export default function IngredientsDashboard() {
   };
   // ...existing code...
 
-  const { signOut } = UserAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // sidebar state handled by shared AdminSidebar
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -332,32 +323,7 @@ export default function IngredientsDashboard() {
   return (
     <div className="opswat-admin">
       {/* Sidebar */}
-      <aside className={`ops-sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="ops-logo">Minute Admin</div>
-        <nav className="sidebar-nav-links">
-          <a href="/admin-user-management" className="nav-item">
-            User Management
-          </a>
-          <a href="/admin/menu-management" className="nav-item">
-            Menu Management
-          </a>
-          <a href="/admin/ingredients-dashboard" className="nav-item active">
-            Inventory
-          </a>
-          <a href="/admin/sales-report" className="nav-item">
-            Sales Report
-          </a>
-          <button
-            className="nav-item logout"
-            onClick={async () => {
-              await signOut();
-              window.location.href = "/login";
-            }}
-          >
-            Log out
-          </button>
-        </nav>
-      </aside>
+      <AdminSidebar active="inventory" />
 
       {/* Main */}
       <main className="ops-main">

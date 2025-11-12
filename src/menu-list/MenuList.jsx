@@ -6,7 +6,7 @@ import onlineIcon from "../assets/online.png";
 import salesIcon from "../assets/sales.png";
 import managementIcon from "../assets/management.png";
 import inventoryIcon from "../assets/inventory.png";
-import burgerImg from "../assets/burger.png";
+import burgerImg from "../assets/cheeseburger.png";
 import sidebarIcon from "../assets/sidebar.png";
 import { supabase } from "../supabaseClient";
 
@@ -17,7 +17,7 @@ const categories = [
   "Bundles",
   "Family Bundles",
   "Beverage",
-  "Limited Time Offers"
+  "Limited Time Offers",
 ];
 
 export default function MenuList() {
@@ -146,7 +146,9 @@ export default function MenuList() {
                 className="table-img"
               />
               <span className="table-name">{item.item_name}</span>
-              <span className="table-price">₱{parseFloat(item.price).toFixed(2)}</span>
+              <span className="table-price">
+                ₱{parseFloat(item.price).toFixed(2)}
+              </span>
               <div className="table-qty">
                 <button onClick={() => handleQty(item.id, -1)}>-</button>
                 <span>{cart[item.id] || 0}</span>

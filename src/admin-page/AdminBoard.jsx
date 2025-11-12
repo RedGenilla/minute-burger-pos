@@ -1,18 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import bcrypt from "bcryptjs";
 import { UserAuth } from "../authenticator/AuthContext";
 import "./AdminBoard.css";
-import minuteLogo from "../assets/minute.png";
-import userIcon from "../assets/user.png";
-import menuIcon from "../assets/menu.png";
-import logoutIcon from "../assets/logout.png";
-import sidebarIcon from "../assets/sidebar.png";
+import AdminSidebar from "./AdminSidebar";
 
 export default function AdminBoard() {
-  const { signOut, session } = UserAuth();
-  const navigate = useNavigate();
+  const { session } = UserAuth();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +17,7 @@ export default function AdminBoard() {
   const [editError, setEditError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Status");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // sidebar state handled by shared AdminSidebar
 
   const [newUser, setNewUser] = useState({
     username: "",
@@ -153,32 +147,7 @@ export default function AdminBoard() {
   return (
     <div className="opswat-admin">
       {/* Sidebar */}
-      <aside className={`ops-sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="ops-logo">Minute Admin</div>
-        <nav className="sidebar-nav-links">
-          <a href="/admin-user-management" className="nav-item active">
-            User Management
-          </a>
-          <a href="/admin/menu-management" className="nav-item">
-            Menu Management
-          </a>
-          <a href="/admin/ingredients-dashboard" className="nav-item">
-            Inventory
-          </a>
-          <a href="/admin/sales-report" className="nav-item">
-            Sales Report
-          </a>
-          <button
-            className="nav-item logout"
-            onClick={async () => {
-              await signOut();
-              window.location.href = "/login";
-            }}
-          >
-            Log out
-          </button>
-        </nav>
-      </aside>
+      <AdminSidebar active="user-management" />
 
       {/* Main */}
       <main className="ops-main">
@@ -223,7 +192,7 @@ export default function AdminBoard() {
                 </tr>
               ) : displayedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="5">No users with that name.</td>
+                  <td colSpan="5">No user found.</td>
                 </tr>
               ) : (
                 displayedUsers.map((u) => (

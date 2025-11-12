@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { UserAuth } from "../authenticator/AuthContext";
 import "./MenuManagement.css";
+import AdminSidebar from "./AdminSidebar";
 
 export default function MenuBoard() {
   // Place order logic should use normalized tables (handled elsewhere)
@@ -10,7 +10,6 @@ export default function MenuBoard() {
   // Ingredient list for dropdown
   const [ingredientOptions, setIngredientOptions] = useState([]);
   const { session } = UserAuth();
-  const navigate = useNavigate();
 
   // Fetch ingredient-list from Supabase for dropdown
   useEffect(() => {
@@ -24,13 +23,12 @@ export default function MenuBoard() {
     };
     fetchIngredients();
   }, []);
-  const { signOut } = UserAuth();
 
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Status");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // sidebar state handled by shared AdminSidebar
 
   const [showForm, setShowForm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -50,23 +48,6 @@ export default function MenuBoard() {
     const { name, value } = e.target;
     setEditIngredientError("");
     setEditIngredientForm((prev) => ({ ...prev, [name]: value }));
-  };
-  const handleAddEditModalIngredient = () => {
-    setEditIngredientForm({ name: "", amount: "", unit: "" });
-    setEditIngredientIndex(null);
-    setShowEditIngredientForm(true);
-  };
-  const handleEditEditModalIngredient = (idx) => {
-    if (!editItem?.ingredients?.[idx]) return;
-    setEditIngredientForm(editItem.ingredients[idx]);
-    setEditIngredientIndex(idx);
-    setShowEditIngredientForm(true);
-  };
-  const handleDeleteEditModalIngredient = (idx) => {
-    setEditItem((prev) => ({
-      ...prev,
-      ingredients: (prev.ingredients || []).filter((_, i) => i !== idx),
-    }));
   };
   const handleEditIngredientFormSubmit = (e) => {
     e.preventDefault();
@@ -88,7 +69,9 @@ export default function MenuBoard() {
         if (!error && data && data.cost) {
           unitCost = parseFloat(data.cost);
         }
-      } catch {}
+      } catch (err) {
+        void err; // intentionally ignore lookup errors
+      }
       const amount = parseFloat(editIngredientForm.amount);
       const totalCost = unitCost * amount;
       const newIngredient = {
@@ -240,7 +223,7 @@ export default function MenuBoard() {
   const [ingredientName, setIngredientName] = useState("");
   const [ingredientAmount, setIngredientAmount] = useState("");
   const [ingredientUnit, setIngredientUnit] = useState("");
-  const [ingredientError, setIngredientError] = useState("");
+  const [, setIngredientError] = useState("");
   const [ingredientEditIndex, setIngredientEditIndex] = useState(null);
 
   const handleAddIngredient = () => {
@@ -282,7 +265,9 @@ export default function MenuBoard() {
       if (!error && data && data.cost) {
         unitCost = parseFloat(data.cost);
       }
-    } catch {}
+    } catch (err) {
+      void err; // intentionally ignore lookup errors
+    }
 
     const amount = parseFloat(ingredientAmount);
     const totalCost = unitCost * amount;
@@ -389,7 +374,7 @@ export default function MenuBoard() {
       const fileName = `${Date.now()}_${Math.random()
         .toString(36)
         .substr(2, 8)}.${fileExt}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("manu-images")
         .upload(fileName, newItem.image, {
           cacheControl: "3600",
@@ -468,10 +453,10 @@ export default function MenuBoard() {
       image: null,
       ingredients: [],
     });
-    setShowIngredientForm(false);
-    setIngredientForm({ name: "", amount: "", unit: "" });
-    setEditIndex(null);
-    setIngredientErrors({});
+    // setShowIngredientForm(false);
+    // setIngredientForm({ name: "", amount: "", unit: "" });
+    // setEditIndex(null);
+    // setIngredientErrors({});
   };
 
   // edit item
@@ -560,7 +545,7 @@ export default function MenuBoard() {
   );
 
   // Helper to get ingredients for display (handles both add and edit modals)
-  const getIngredientsForDisplay = (item, isEdit) => {
+  const getIngredientsForDisplay = (item) => {
     if (!item) return [];
     return item.ingredients || [];
   };
@@ -575,34 +560,7 @@ export default function MenuBoard() {
       {/* Example usage: Place order for first menu item (for testing) */}
       {/* <button onClick={() => placeOrder(menuItems[0]?.id, 1)}>Test Order (Deduct Ingredients)</button> */}
       {/* Sidebar */}
-      <aside className={`ops-sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="ops-logo">Minute Admin</div>
-        <nav className="sidebar-nav-links">
-          <a href="/admin-user-management" className="nav-item">
-            User Management
-          </a>
-          <a href="/admin/menu-management" className="nav-item active">
-            Menu Management
-          </a>
-          <a href="/admin/ingredients-dashboard" className="nav-item">
-            Inventory
-          </a>
-          <a href="/admin/sales-report" className="nav-item">
-            Sales Report
-          </a>
-        </nav>
-        <div className="sidebar-logout-wrap">
-          <button
-            className="nav-item logout"
-            onClick={async () => {
-              await signOut();
-              navigate("/login");
-            }}
-          >
-            Log out
-          </button>
-        </div>
-      </aside>
+      <AdminSidebar active="menu-management" />
 
       {/* Main */}
       <main className="ops-main">
@@ -820,8 +778,7 @@ export default function MenuBoard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {getIngredientsForDisplay(newItem, false).length ===
-                          0 ? (
+                          {getIngredientsForDisplay(newItem).length === 0 ? (
                             <tr>
                               <td
                                 colSpan="3"
@@ -831,7 +788,7 @@ export default function MenuBoard() {
                               </td>
                             </tr>
                           ) : (
-                            getIngredientsForDisplay(newItem, false).map(
+                            getIngredientsForDisplay(newItem).map(
                               (ing, idx) => (
                                 <tr
                                   key={idx}
@@ -1128,8 +1085,7 @@ export default function MenuBoard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {getIngredientsForDisplay(editItem, true).length ===
-                          0 ? (
+                          {getIngredientsForDisplay(editItem).length === 0 ? (
                             <tr>
                               <td
                                 colSpan="3"
@@ -1139,7 +1095,7 @@ export default function MenuBoard() {
                               </td>
                             </tr>
                           ) : (
-                            getIngredientsForDisplay(editItem, true).map(
+                            getIngredientsForDisplay(editItem).map(
                               (ing, idx) => (
                                 <tr
                                   key={idx}
