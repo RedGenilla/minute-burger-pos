@@ -31,6 +31,44 @@ function formatDate(date) {
 }
 
 export default function SalesReport() {
+  // Low stock notifier for Inventory sidebar
+  const [lowStockCount, setLowStockCount] = useState(0);
+
+  useEffect(() => {
+    // Fetch low stock count from ingredient-list and stock_movement
+    const fetchLowStock = async () => {
+      const { data: ingredients, error: ingError } = await supabase
+        .from("ingredient-list")
+        .select("id");
+      if (ingError || !ingredients) return;
+      const { data: movements, error: movError } = await supabase
+        .from("stock_movement")
+        .select("ingredient_id, type, quantity");
+      if (movError || !movements) return;
+      const summary = {};
+      for (const ing of ingredients) summary[ing.id] = 0;
+      for (const m of movements) {
+        if (summary[m.ingredient_id] !== undefined) {
+          summary[m.ingredient_id] +=
+            m.type === "in" ? m.quantity : -m.quantity;
+        }
+      }
+      const count = Object.values(summary).filter(
+        (q) => q > 0 && q <= 5
+      ).length;
+      setLowStockCount(count);
+    };
+    fetchLowStock();
+    const sub = supabase
+      .channel("stock-movement-lowstock")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        fetchLowStock
+      )
+      .subscribe();
+    return () => supabase.removeChannel(sub);
+  }, []);
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -232,7 +270,37 @@ export default function SalesReport() {
           <a href="/admin/menu-management" className="nav-item">
             Menu Management
           </a>
-          <a href="/admin/ingredients-dashboard" className="nav-item">
+          <a
+            href="/admin/ingredients-dashboard"
+            className={`nav-item${lowStockCount > 0 ? " nav-item-red" : ""}`}
+            style={{
+              position: "relative",
+              background: lowStockCount > 0 ? "rgba(255, 0, 0, 0.45)" : undefined,
+              color: lowStockCount > 0 ? "#222" : undefined,
+              fontWeight: lowStockCount > 0 ? "bold" : undefined,
+              transition: "background 0.2s",
+            }}
+          >
+            {lowStockCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: "-10px",
+                  top: "10%",
+                  transform: "translateY(-50%)",
+                  background: "rgba(255, 0, 0, 155)",
+                  color: "white",
+                  borderRadius: "50%",
+                  padding: "2px 8px",
+                  fontSize: "0.8em",
+                  fontWeight: "bold",
+                  zIndex: 2,
+                  boxShadow: "0 0 2px #0002",
+                }}
+              >
+                {lowStockCount}
+              </span>
+            )}
             Inventory
           </a>
           <a href="/admin/sales-report" className="nav-item active">

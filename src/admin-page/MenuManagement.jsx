@@ -5,6 +5,44 @@ import { UserAuth } from "../authenticator/AuthContext";
 import "./MenuManagement.css";
 
 export default function MenuBoard() {
+  // Low stock notifier for Inventory sidebar
+  const [lowStockCount, setLowStockCount] = useState(0);
+
+  useEffect(() => {
+    // Fetch low stock count from ingredient-list and stock_movement
+    const fetchLowStock = async () => {
+      const { data: ingredients, error: ingError } = await supabase
+        .from("ingredient-list")
+        .select("id");
+      if (ingError || !ingredients) return;
+      const { data: movements, error: movError } = await supabase
+        .from("stock_movement")
+        .select("ingredient_id, type, quantity");
+      if (movError || !movements) return;
+      const summary = {};
+      for (const ing of ingredients) summary[ing.id] = 0;
+      for (const m of movements) {
+        if (summary[m.ingredient_id] !== undefined) {
+          summary[m.ingredient_id] +=
+            m.type === "in" ? m.quantity : -m.quantity;
+        }
+      }
+      const count = Object.values(summary).filter(
+        (q) => q > 0 && q <= 5
+      ).length;
+      setLowStockCount(count);
+    };
+    fetchLowStock();
+    const sub = supabase
+      .channel("stock-movement-lowstock")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        fetchLowStock
+      )
+      .subscribe();
+    return () => supabase.removeChannel(sub);
+  }, []);
   // Place order logic should use normalized tables (handled elsewhere)
   // ...existing code...
   // Ingredient list for dropdown
@@ -12,15 +50,43 @@ export default function MenuBoard() {
   const { session } = UserAuth();
   const navigate = useNavigate();
 
-  // Fetch ingredient-list from Supabase for dropdown
+  // Fetch ingredient-list and aggregate quantity/cost from stock_movement for dropdown
   useEffect(() => {
     const fetchIngredients = async () => {
-      const { data, error } = await supabase
+      // Get all ingredients
+      const { data: ingredients, error: ingError } = await supabase
         .from("ingredient-list")
-        .select("name, quantity");
-      if (!error && data) {
-        setIngredientOptions(data); // store as array of objects {name, quantity}
-      }
+        .select("id, name, code");
+      if (ingError || !ingredients) return;
+      // Get all stock movements
+      const { data: movements, error: movError } = await supabase
+        .from("stock_movement")
+        .select("ingredient_id, type, quantity, cost");
+      if (movError || !movements) return;
+      // Aggregate quantity and last cost for each ingredient
+      const summary = {};
+      movements.forEach((m) => {
+        if (!summary[m.ingredient_id]) {
+          summary[m.ingredient_id] = { quantity: 0, lastCost: 0 };
+        }
+        if (m.type === "in") {
+          summary[m.ingredient_id].quantity += Number(m.quantity);
+          summary[m.ingredient_id].lastCost = Number(m.cost);
+        } else if (m.type === "out") {
+          summary[m.ingredient_id].quantity -= Number(m.quantity);
+        }
+      });
+      // Merge with ingredient list and filter only those with quantity > 0
+      const options = ingredients
+        .map((ing) => ({
+          id: ing.id,
+          name: ing.name,
+          code: ing.code,
+          quantity: summary[ing.id]?.quantity || 0,
+          cost: summary[ing.id]?.lastCost || 0,
+        }))
+        .filter((opt) => opt.quantity > 0);
+      setIngredientOptions(options);
     };
     fetchIngredients();
   }, []);
@@ -76,17 +142,28 @@ export default function MenuBoard() {
       !editIngredientForm.unit
     )
       return;
-    // Fetch unit cost from Supabase ingredient-list
+    // Fetch unit cost from stock_movement aggregation
     const fetchAndSetIngredient = async () => {
       let unitCost = 0;
       try {
-        const { data, error } = await supabase
+        // Find ingredient by name
+        const { data: ingData, error: ingError } = await supabase
           .from("ingredient-list")
-          .select("name, cost")
+          .select("id")
           .eq("name", editIngredientForm.name)
           .single();
-        if (!error && data && data.cost) {
-          unitCost = parseFloat(data.cost);
+        if (!ingError && ingData) {
+          // Get most recent stock in for this ingredient
+          const { data: stockIns, error: stockError } = await supabase
+            .from("stock_movement")
+            .select("cost, date")
+            .eq("ingredient_id", ingData.id)
+            .eq("type", "in")
+            .order("date", { ascending: false })
+            .limit(1);
+          if (!stockError && stockIns && stockIns.length > 0) {
+            unitCost = parseFloat(stockIns[0].cost);
+          }
         }
       } catch {}
       const amount = parseFloat(editIngredientForm.amount);
@@ -271,16 +348,27 @@ export default function MenuBoard() {
       setIngredientError("Please fill in all fields.");
       return;
     }
-    // Fetch unit cost from Supabase ingredient-list
+    // Only fetch unit cost for display, do not block on inventory
     let unitCost = 0;
     try {
-      const { data, error } = await supabase
+      // Find ingredient by name
+      const { data: ingData, error: ingError } = await supabase
         .from("ingredient-list")
-        .select("name, cost")
+        .select("id")
         .eq("name", ingredientName)
         .single();
-      if (!error && data && data.cost) {
-        unitCost = parseFloat(data.cost);
+      if (!ingError && ingData) {
+        // Get most recent stock in for this ingredient
+        const { data: stockIns, error: stockError } = await supabase
+          .from("stock_movement")
+          .select("cost, date")
+          .eq("ingredient_id", ingData.id)
+          .eq("type", "in")
+          .order("date", { ascending: false })
+          .limit(1);
+        if (!stockError && stockIns && stockIns.length > 0) {
+          unitCost = parseFloat(stockIns[0].cost);
+        }
       }
     } catch {}
 
@@ -332,7 +420,8 @@ export default function MenuBoard() {
       setLoading(false);
     };
     fetchMenu();
-    const sub = supabase
+    // Listen for ingredient-list changes to auto-update menu item status
+    const subMenu = supabase
       .channel("menu-list-status")
       .on(
         "postgres_changes",
@@ -340,24 +429,122 @@ export default function MenuBoard() {
         fetchMenu
       )
       .subscribe();
-    return () => supabase.removeChannel(sub);
+    const subInventory = supabase
+      .channel("ingredient-list-status")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ingredient-list" },
+        async () => {
+          // When inventory changes, check all menu items and update status
+          const { data: allMenuItems, error: menuError } = await supabase
+            .from("menu-list")
+            .select();
+          if (menuError || !allMenuItems) return;
+          for (const menuItem of allMenuItems) {
+            // Get ingredients for this menu item
+            const { data: menuIngredients, error: ingError } = await supabase
+              .from("menu_ingredients")
+              .select("ingredient_id, amount, ingredient-list(name)")
+              .eq("menu_id", menuItem.id);
+            if (ingError || !menuIngredients) continue;
+            // Build array of {name, amount}
+            const ingredients = menuIngredients.map((ing) => ({
+              name: ing["ingredient-list"]?.name || "",
+              amount: ing.amount,
+            }));
+            // Check if all ingredients are available
+            const { data: inventory, error: invError } = await supabase
+              .from("ingredient-list")
+              .select("name, quantity");
+            if (invError || !inventory) continue;
+            let isAvailable = true;
+            for (const ing of ingredients) {
+              const inv = inventory.find((i) => i.name === ing.name);
+              if (!inv || Number(ing.amount) > Number(inv.quantity)) {
+                isAvailable = false;
+                break;
+              }
+            }
+            // If status needs to change, update menu-list
+            const newStatus = isAvailable ? "Active" : "Inactive";
+            if (menuItem.status !== newStatus) {
+              await supabase
+                .from("menu-list")
+                .update({ status: newStatus })
+                .eq("id", menuItem.id);
+            }
+          }
+          fetchMenu();
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(subMenu);
+      supabase.removeChannel(subInventory);
+    };
   }, [filter, showForm, refreshMenu]);
 
   // add item
-  // Helper to check ingredient availability
+  // Helper to check ingredient availability using stock_movement aggregation
   const checkIngredientsAvailability = async (ingredients) => {
-    // Get latest inventory from Supabase
-    const { data: inventory, error } = await supabase
+    // Get all ingredients with their IDs
+    const { data: ingredientList, error: ingError } = await supabase
       .from("ingredient-list")
-      .select("name, quantity");
-    if (error || !inventory) return false;
+      .select("id, name");
+    if (ingError || !ingredientList) {
+      console.log("Error fetching ingredient-list:", ingError);
+      return false;
+    }
+    // Get all stock movements
+    const { data: movements, error: movError } = await supabase
+      .from("stock_movement")
+      .select("ingredient_id, type, quantity");
+    if (movError || !movements) {
+      console.log("Error fetching stock_movement:", movError);
+      return false;
+    }
+    // Aggregate inventory for each ingredient
+    const inventoryMap = {};
+    movements.forEach((m) => {
+      if (!inventoryMap[m.ingredient_id]) inventoryMap[m.ingredient_id] = 0;
+      if (m.type === "in") inventoryMap[m.ingredient_id] += Number(m.quantity);
+      else if (m.type === "out")
+        inventoryMap[m.ingredient_id] -= Number(m.quantity);
+    });
+    let allAvailable = true;
+    let debugSummary = [];
     for (const ing of ingredients) {
-      const inv = inventory.find((i) => i.name === ing.name);
-      if (!inv || Number(ing.amount) > Number(inv.quantity)) {
-        return false;
+      // Use case-insensitive match for ingredient name
+      const ingredientObj = ingredientList.find(
+        (i) =>
+          i.name.trim().toLowerCase() === String(ing.name).trim().toLowerCase()
+      );
+      if (!ingredientObj) {
+        console.log("Ingredient not found:", ing.name);
+        debugSummary.push({ name: ing.name, found: false });
+        allAvailable = false;
+        continue;
+      }
+      const availableQty = inventoryMap[ingredientObj.id] || 0;
+      const requiredQty = Number(ing.amount);
+      debugSummary.push({
+        name: ing.name,
+        found: true,
+        required: requiredQty,
+        available: availableQty,
+      });
+      console.log(
+        `Checking ingredient: ${ing.name}, required: ${requiredQty}, available: ${availableQty}`
+      );
+      if (requiredQty > availableQty) {
+        console.log(
+          `Insufficient inventory for ${ing.name}: required ${requiredQty}, available ${availableQty}`
+        );
+        allAvailable = false;
       }
     }
-    return true;
+    console.log("Ingredient availability summary:", debugSummary);
+    return allAvailable;
   };
 
   const addItem = async (e) => {
@@ -472,6 +659,45 @@ export default function MenuBoard() {
     setIngredientForm({ name: "", amount: "", unit: "" });
     setEditIndex(null);
     setIngredientErrors({});
+
+    // Immediately update menu item status for all menu items after adding
+    const updateMenuItemStatus = async () => {
+      const { data: allMenuItems, error: menuError } = await supabase
+        .from("menu-list")
+        .select();
+      if (menuError || !allMenuItems) return;
+      for (const menuItem of allMenuItems) {
+        const { data: menuIngredients, error: ingError } = await supabase
+          .from("menu_ingredients")
+          .select("ingredient_id, amount")
+          .eq("menu_id", menuItem.id);
+        if (ingError || !menuIngredients) continue;
+        let isAvailable = true;
+        for (const ing of menuIngredients) {
+          const { data: movements, error: movError } = await supabase
+            .from("stock_movement")
+            .select("type, quantity")
+            .eq("ingredient_id", ing.ingredient_id);
+          if (movError || !movements) continue;
+          let currentQty = 0;
+          for (const m of movements) {
+            currentQty += m.type === "in" ? m.quantity : -m.quantity;
+          }
+          if (currentQty < Number(ing.amount)) {
+            isAvailable = false;
+            break;
+          }
+        }
+        const newStatus = isAvailable ? "Active" : "Inactive";
+        if (menuItem.status !== newStatus) {
+          await supabase
+            .from("menu-list")
+            .update({ status: newStatus })
+            .eq("id", menuItem.id);
+        }
+      }
+    };
+    await updateMenuItemStatus();
   };
 
   // edit item
@@ -584,7 +810,38 @@ export default function MenuBoard() {
           <a href="/admin/menu-management" className="nav-item active">
             Menu Management
           </a>
-          <a href="/admin/ingredients-dashboard" className="nav-item">
+          <a
+            href="/admin/ingredients-dashboard"
+            className={`nav-item${lowStockCount > 0 ? " nav-item-red" : ""}`}
+            style={{
+              position: "relative",
+              background:
+                lowStockCount > 0 ? "rgba(255, 0, 0, 0.45)" : undefined,
+              color: lowStockCount > 0 ? "#222" : undefined,
+              fontWeight: lowStockCount > 0 ? "bold" : undefined,
+              transition: "background 0.2s",
+            }}
+          >
+            {lowStockCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: "-10px",
+                  top: "10%",
+                  transform: "translateY(-50%)",
+                  background: "rgba(255, 0, 0, 155)",
+                  color: "white",
+                  borderRadius: "50%",
+                  padding: "2px 8px",
+                  fontSize: "0.8em",
+                  fontWeight: "bold",
+                  zIndex: 2,
+                  boxShadow: "0 0 2px #0002",
+                }}
+              >
+                {lowStockCount}
+              </span>
+            )}
             Inventory
           </a>
           <a href="/admin/sales-report" className="nav-item">
@@ -657,7 +914,7 @@ export default function MenuBoard() {
                     <td>{parseFloat(m.price).toFixed(2)}</td>
                     <td>
                       <span className={`status ${m.status.toLowerCase()}`}>
-                        {m.status}
+                        {m.status === "Inactive" ? "Unavailable" : m.status}
                       </span>
                     </td>
                     <td>{m.description}</td>
@@ -1275,3 +1532,89 @@ export default function MenuBoard() {
     </div>
   );
 }
+
+// Place order and deduct ingredients using normalized tables
+// orderData: { user_id, order_items, total_price, payment_type }
+export const placeOrderAndDeduct = async (orderData) => {
+  try {
+    // Deduct ingredients for each order item
+    for (const orderItem of orderData.order_items) {
+      // Get menu item ingredients
+      const { data: menuIngredients, error: ingError } = await supabase
+        .from("menu_ingredients")
+        .select("ingredient_id, amount")
+        .eq("menu_id", orderItem.menu_item_id);
+      if (ingError || !menuIngredients) continue;
+      for (const ing of menuIngredients) {
+        // Get current inventory
+        const { data: movements, error: movError } = await supabase
+          .from("stock_movement")
+          .select("type, quantity")
+          .eq("ingredient_id", ing.ingredient_id);
+        if (movError || !movements) continue;
+        let currentQty = 0;
+        for (const m of movements) {
+          currentQty += m.type === "in" ? m.quantity : -m.quantity;
+        }
+        // Prevent negative inventory
+        const requiredQty = Number(ing.amount) * Number(orderItem.quantity);
+        if (currentQty < requiredQty) {
+          alert(
+            "Insufficient inventory for ingredient. Order cannot be processed."
+          );
+          return;
+        }
+        // Deduct ingredient
+        await supabase.from("stock_movement").insert({
+          ingredient_id: ing.ingredient_id,
+          type: "out",
+          quantity: requiredQty,
+          status: "Active",
+          date: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+    // After deduction, check all menu items and update status
+    const { data: allMenuItems, error: menuError } = await supabase
+      .from("menu-list")
+      .select();
+    if (menuError || !allMenuItems) return;
+    for (const menuItem of allMenuItems) {
+      // Get ingredients for this menu item
+      const { data: menuIngredients, error: ingError } = await supabase
+        .from("menu_ingredients")
+        .select("ingredient_id, amount")
+        .eq("menu_id", menuItem.id);
+      if (ingError || !menuIngredients) continue;
+      let isAvailable = true;
+      for (const ing of menuIngredients) {
+        // Get current inventory
+        const { data: movements, error: movError } = await supabase
+          .from("stock_movement")
+          .select("type, quantity")
+          .eq("ingredient_id", ing.ingredient_id);
+        if (movError || !movements) continue;
+        let currentQty = 0;
+        for (const m of movements) {
+          currentQty += m.type === "in" ? m.quantity : -m.quantity;
+        }
+        if (currentQty < Number(ing.amount)) {
+          isAvailable = false;
+          break;
+        }
+      }
+      // If status needs to change, update menu-list
+      const newStatus = isAvailable ? "Active" : "Inactive";
+      if (menuItem.status !== newStatus) {
+        await supabase
+          .from("menu-list")
+          .update({ status: newStatus })
+          .eq("id", menuItem.id);
+      }
+    }
+    // ...existing order logic (e.g., insert order record)...
+  } catch (err) {
+    console.error("Error in placeOrderAndDeduct:", err);
+  }
+};

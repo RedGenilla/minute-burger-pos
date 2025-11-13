@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import stockInIcon from "../assets/stockin.png"; // Add your icon file
+import stockOutIcon from "../assets/stockout.png"; // Add your icon file
 import { UserAuth } from "../authenticator/AuthContext";
 import { supabase } from "../supabaseClient";
 import "./ingredients.css"; // Use the same CSS as MenuManagement for unified UI
@@ -121,6 +123,169 @@ const unitOptions = {
 };
 
 export default function IngredientsDashboard() {
+  // ...existing state...
+  // Automatically update menu item status based on inventory
+  const updateMenuItemStatus = async () => {
+    // Fetch all menu items
+    const { data: menuItems, error: menuError } = await supabase
+      .from("menu-list")
+      .select("id, status");
+    if (menuError || !menuItems) return;
+    for (const menuItem of menuItems) {
+      // Get required ingredients for this menu item
+      const { data: menuIngredients, error: ingError } = await supabase
+        .from("menu_ingredients")
+        .select("ingredient_id, amount")
+        .eq("menu_id", menuItem.id);
+      if (ingError || !menuIngredients) continue;
+      let isAvailable = true;
+      for (const ing of menuIngredients) {
+        // Get current inventory for ingredient
+        const { data: movements, error: movError } = await supabase
+          .from("stock_movement")
+          .select("type, quantity")
+          .eq("ingredient_id", ing.ingredient_id);
+        if (movError || !movements) continue;
+        let currentQty = 0;
+        for (const m of movements) {
+          currentQty += m.type === "in" ? m.quantity : -m.quantity;
+        }
+        if (currentQty < Number(ing.amount)) {
+          isAvailable = false;
+          break;
+        }
+      }
+      // If status needs to change, update menu-list
+      const newStatus = isAvailable ? "Active" : "Inactive";
+      if (menuItem.status !== newStatus) {
+        await supabase
+          .from("menu-list")
+          .update({ status: newStatus })
+          .eq("id", menuItem.id);
+      }
+    }
+  };
+  // Low stock threshold
+  const LOW_STOCK_THRESHOLD = 5;
+  const [showTransactionsModal, setShowTransactionsModal] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  // Fetch all stock transactions for modal
+  const fetchTransactions = async () => {
+    const { data, error } = await supabase
+      .from("stock_movement")
+      .select("*, ingredient-list(name, code)")
+      .order("date", { ascending: false });
+    if (!error && data) setTransactions(data);
+  };
+  // ...existing state...
+  const [stockSummary, setStockSummary] = useState({});
+  // Stock In/Out modal state
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [stockType, setStockType] = useState("in");
+  const [stockItem, setStockItem] = useState(null);
+  const [stockValues, setStockValues] = useState({
+    date: "",
+    quantity: "",
+    cost: "",
+  });
+  const [stockError, setStockError] = useState("");
+
+  // Open Stock In/Out modal
+  const openStockModal = (item, type) => {
+    setStockItem(item);
+    setStockType(type);
+    setStockValues({ date: "", quantity: "", cost: "" });
+    setShowStockModal(true);
+  };
+
+  // Handle Stock In/Out value change
+  const handleStockChange = (e) => {
+    const { name, value } = e.target;
+    setStockValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Submit Stock In/Out transaction
+  const handleStockSubmit = async (e) => {
+    e.preventDefault();
+    setStockError("");
+    if (!stockItem) {
+      setStockError("No item selected.");
+      return;
+    }
+    if (!stockValues.date) {
+      setStockError("Date is required.");
+      return;
+    }
+    if (
+      !stockValues.quantity ||
+      isNaN(stockValues.quantity) ||
+      Number(stockValues.quantity) <= 0
+    ) {
+      setStockError("Quantity must be a positive number.");
+      return;
+    }
+    // For stock in, cost is required
+    if (stockType === "in") {
+      if (
+        !stockValues.cost ||
+        isNaN(stockValues.cost) ||
+        Number(stockValues.cost) < 0
+      ) {
+        setStockError("Cost must be zero or a positive number.");
+        return;
+      }
+    }
+    // For stock out, check available quantity and prevent negative inventory
+    if (stockType === "out") {
+      // Get current inventory from stock movements for this ingredient
+      let currentQty = 0;
+      const { data: movements, error: movError } = await supabase
+        .from("stock_movement")
+        .select("type, quantity")
+        .eq("ingredient_id", stockItem.id);
+      if (!movError && movements) {
+        for (const m of movements) {
+          currentQty += m.type === "in" ? m.quantity : -m.quantity;
+        }
+      }
+      const outQty = Number(stockValues.quantity);
+      if (outQty > currentQty) {
+        setStockError(`Cannot stock out more than available (${currentQty}).`);
+        return;
+      }
+      // Prevent negative inventory: if outQty would make inventory negative, block
+      if (currentQty - outQty < 0) {
+        setStockError(
+          "This transaction would result in negative inventory. Please adjust the quantity."
+        );
+        return;
+      }
+    }
+    setLoading(true);
+    // Only save cost for stock in
+    const txData = {
+      ingredient_id: stockItem.id,
+      type: stockType,
+      date: stockValues.date,
+      quantity: Number(stockValues.quantity),
+      status: "Active",
+      created_at: new Date().toISOString(),
+    };
+    if (stockType === "in") {
+      txData.cost = Number(stockValues.cost);
+    }
+    const { error } = await supabase.from("stock_movement").insert(txData);
+    if (error) {
+      setStockError("Failed to save transaction: " + error.message);
+      setLoading(false);
+      return;
+    }
+    setShowStockModal(false);
+    setStockItem(null);
+    setStockValues({ date: "", quantity: "", cost: "" });
+    await fetchItems();
+    setLoading(false);
+  };
   // Place order and deduct ingredients using normalized tables
   // orderData: { user_id, order_items, total_price, payment_type }
   const placeOrderAndDeduct = async (orderData) => {
@@ -180,7 +345,7 @@ export default function IngredientsDashboard() {
       }
 
       // 4. Deduct inventory based on order_item_ingredients
-      // Aggregate ingredient totals from order_item_ingredients for this order
+      // Deduct inventory by inserting stock_movement 'out' transactions
       const { data: usedIngredients, error: usedError } = await supabase
         .from("order_items")
         .select("id")
@@ -193,19 +358,14 @@ export default function IngredientsDashboard() {
             .eq("order_item_id", oi.id);
           if (!ingListError && ingList) {
             for (const ing of ingList) {
-              // Fetch current quantity
-              const { data: invData, error: invError } = await supabase
-                .from("ingredient-list")
-                .select("id, quantity")
-                .eq("id", ing.ingredient_id)
-                .single();
-              if (invError || !invData) continue;
-              const currentQty = Number(invData.quantity) || 0;
-              const newQty = Math.max(currentQty - Number(ing.amount), 0);
-              await supabase
-                .from("ingredient-list")
-                .update({ quantity: newQty })
-                .eq("id", invData.id);
+              await supabase.from("stock_movement").insert({
+                ingredient_id: ing.ingredient_id,
+                type: "out",
+                quantity: Number(ing.amount),
+                date: new Date().toISOString(),
+                status: "Active",
+                created_at: new Date().toISOString(),
+              });
             }
           }
         }
@@ -231,8 +391,6 @@ export default function IngredientsDashboard() {
     name: "",
     category: "",
     units: "",
-    cost: "",
-    quantity: "",
     status: "Inactive",
   });
   const [newItem, setNewItem] = useState({
@@ -240,18 +398,41 @@ export default function IngredientsDashboard() {
     name: "",
     category: "",
     units: "",
-    cost: "",
-    quantity: "",
     status: "Inactive",
   });
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Status");
 
-  // Fetch items from Supabase
+  // Fetch items and stock summary from Supabase
   const fetchItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("ingredient-list").select("*");
-    if (!error) setItems(data || []);
+    const { data: itemsData, error: itemsError } = await supabase
+      .from("ingredient-list")
+      .select("*");
+    if (!itemsError) setItems(itemsData || []);
+
+    // Fetch stock movements and aggregate
+    const { data: movements, error: movementsError } = await supabase
+      .from("stock_movement")
+      .select("ingredient_id, type, quantity, cost");
+    if (!movementsError && movements) {
+      // Aggregate by ingredient_id
+      const summary = {};
+      movements.forEach((m) => {
+        if (!summary[m.ingredient_id]) {
+          summary[m.ingredient_id] = { quantity: 0, lastCost: 0 };
+        }
+        if (m.type === "in") {
+          summary[m.ingredient_id].quantity += Number(m.quantity);
+          summary[m.ingredient_id].lastCost = Number(m.cost); // Use last cost for display
+        } else if (m.type === "out" || m.type === "Stock Out") {
+          summary[m.ingredient_id].quantity -= Number(m.quantity);
+        }
+      });
+      setStockSummary(summary);
+    }
+    // After updating inventory, update menu item status
+    await updateMenuItemStatus();
     setLoading(false);
   };
 
@@ -263,10 +444,10 @@ export default function IngredientsDashboard() {
   const addItem = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // Auto-toggle status based on quantity
+    // Status is always 'Inactive' for new items; quantity managed via stock movements
     const itemToAdd = {
       ...newItem,
-      status: Number(newItem.quantity) > 0 ? "Active" : "Inactive",
+      status: "Inactive",
     };
     const { error } = await supabase
       .from("ingredient-list")
@@ -281,7 +462,11 @@ export default function IngredientsDashboard() {
         cost: "",
         status: "Inactive",
       });
+      // Immediately fetch latest inventory and menu item status after adding
       await fetchItems();
+      // Optionally, fetch menu-list status if you want to show it in the UI
+      // const { data: menuItems } = await supabase.from("menu-list").select("id, name, status");
+      // setMenuItems(menuItems || []);
     }
     setLoading(false);
   };
@@ -300,10 +485,9 @@ export default function IngredientsDashboard() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // Auto-toggle status based on quantity
+    // Status is not toggled by edit; quantity managed via stock movements
     const updatedValues = {
       ...editValues,
-      status: Number(editValues.quantity) > 0 ? "Active" : "Inactive",
     };
     const { error } = await supabase
       .from("ingredient-list")
@@ -311,23 +495,53 @@ export default function IngredientsDashboard() {
       .eq("id", editItem.id);
     if (!error) {
       setShowEditModal(false);
+      // Immediately fetch latest inventory and menu item status after editing
       await fetchItems();
+      // Optionally, fetch menu-list status if you want to show it in the UI
+      // const { data: menuItems } = await supabase.from("menu-list").select("id, name, status");
+      // setMenuItems(menuItems || []);
     }
     setLoading(false);
   };
 
-  // Filtered & searched items
+  // Filtered & searched items with stock summary
   const displayedItems = items
     .filter(
       (item) =>
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         item.code.toLowerCase().includes(search.toLowerCase())
     )
-    .filter((item) => (filter === "Status" ? true : item.status === filter))
-    .map((item) => ({
-      ...item,
-      status: Number(item.quantity) > 0 ? "Active" : "Inactive",
-    }));
+    .map((item) => {
+      const summary = stockSummary[item.id] || { quantity: 0, lastCost: 0 };
+      let status = "Inactive";
+      let lowStock = false;
+      if (summary.quantity > LOW_STOCK_THRESHOLD) {
+        status = "Active";
+      } else if (
+        summary.quantity > 0 &&
+        summary.quantity <= LOW_STOCK_THRESHOLD
+      ) {
+        status = "Active";
+        lowStock = true;
+      }
+      return {
+        ...item,
+        quantity: summary.quantity,
+        cost: summary.lastCost,
+        status,
+        lowStock,
+      };
+    })
+    .filter((item) => {
+      // Only filter if filter is 'Active' or 'Inactive'
+      if (filter === "Active" || filter === "Inactive") {
+        return item.status === filter;
+      }
+      return true;
+    });
+
+  // Count of low stock items for sidebar badge
+  const lowStockCount = displayedItems.filter((item) => item.lowStock).length;
 
   return (
     <div className="opswat-admin">
@@ -341,7 +555,31 @@ export default function IngredientsDashboard() {
           <a href="/admin/menu-management" className="nav-item">
             Menu Management
           </a>
-          <a href="/admin/ingredients-dashboard" className="nav-item active">
+          <a
+            href="/admin/ingredients-dashboard"
+            className="nav-item active"
+            style={{ position: "relative" }}
+          >
+            {lowStockCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: "-8px",
+                  top: "10%",
+                  transform: "translateY(-50%)",
+                  background: "red",
+                  color: "white",
+                  borderRadius: "50%",
+                  padding: "2px 8px",
+                  fontSize: "0.8em",
+                  fontWeight: "bold",
+                  zIndex: 2,
+                  boxShadow: "0 0 2px #0002",
+                }}
+              >
+                {lowStockCount}
+              </span>
+            )}
             Inventory
           </a>
           <a href="/admin/sales-report" className="nav-item">
@@ -366,7 +604,87 @@ export default function IngredientsDashboard() {
           <button className="add-btn" onClick={() => setShowForm(true)}>
             Add Item +
           </button>
+          <button
+            className="transactions-btn"
+            style={{ marginLeft: "8px" }}
+            onClick={async () => {
+              await fetchTransactions();
+              setShowTransactionsModal(true);
+            }}
+          >
+            Stock Transactions
+          </button>
         </header>
+        {/* Stock Transactions Modal */}
+        {showTransactionsModal && (
+          <div className="modal-bg">
+            <div className="ingredients-modal" style={{ maxWidth: "600px" }}>
+              <div className="adduser-header-bar">
+                <span className="adduser-title">Stock Transactions</span>
+              </div>
+              <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                {transactions.length === 0 ? (
+                  <div style={{ padding: "16px" }}>No transactions found.</div>
+                ) : (
+                  transactions.map((tx) => (
+                    <div
+                      key={tx.id}
+                      style={{
+                        border: "1px solid #ccc",
+                        borderRadius: "8px",
+                        margin: "8px 0",
+                        padding: "12px",
+                        background: tx.type === "in" ? "#e6ffe6" : "#ffe6e6",
+                      }}
+                    >
+                      <div>
+                        <b>{tx["ingredient-list"]?.name || "Unknown"}</b> (
+                        {tx["ingredient-list"]?.code || ""})
+                      </div>
+                      <div>Date: {tx.date}</div>
+                      <div>
+                        Type:{" "}
+                        <b
+                          style={{ color: tx.type === "in" ? "green" : "red" }}
+                        >
+                          {tx.type.toUpperCase()}
+                        </b>
+                      </div>
+                      <div>Quantity: {tx.quantity}</div>
+                      <div>
+                        Cost: ₱
+                        {(() => {
+                          if (tx.type === "in") return tx.cost;
+                          // For stock out, find most recent stock in before this tx.date
+                          const recentIn = transactions
+                            .filter(
+                              (t2) =>
+                                t2.ingredient_id === tx.ingredient_id &&
+                                t2.type === "in" &&
+                                new Date(t2.date) <= new Date(tx.date)
+                            )
+                            .sort(
+                              (a, b) => new Date(b.date) - new Date(a.date)
+                            )[0];
+                          return recentIn ? recentIn.cost : "-";
+                        })()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="modal-actions adduser-actions">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowTransactionsModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="ops-controls">
           <input
@@ -390,8 +708,8 @@ export default function IngredientsDashboard() {
                 <th>Category</th>
                 <th>Item Code</th>
                 <th>Item Name</th>
-                <th>Quantity</th>
                 <th>Units</th>
+                <th>Quantity</th>
                 <th>Cost</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -410,17 +728,37 @@ export default function IngredientsDashboard() {
                 </tr>
               ) : (
                 displayedItems.map((item) => (
-                  <tr key={item.id}>
+                  <tr
+                    key={item.id}
+                    style={
+                      item.lowStock ? { background: "#ffe6e6" } : undefined
+                    }
+                  >
                     <td>{item.category}</td>
                     <td>{item.code}</td>
                     <td>{item.name}</td>
-                    <td>{item.quantity ?? 0}</td>
                     <td>{item.units}</td>
-                    <td>₱{item.cost}.00</td>
+                    <td>{item.quantity}</td>
+                    <td>₱{item.cost}</td>
                     <td>
                       <span className={`status ${item.status.toLowerCase()}`}>
                         {item.status}
                       </span>
+                      {item.lowStock && (
+                        <span
+                          style={{
+                            background: "red",
+                            color: "white",
+                            borderRadius: "6px",
+                            padding: "2px 8px",
+                            marginLeft: "8px",
+                            fontSize: "0.8em",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          Low Stock
+                        </span>
+                      )}
                     </td>
                     <td>
                       <button
@@ -429,7 +767,107 @@ export default function IngredientsDashboard() {
                       >
                         ✏️
                       </button>
+                      <button
+                        className="stock-in"
+                        title="Stock In"
+                        onClick={() => openStockModal(item, "in")}
+                        style={{ marginLeft: "4px" }}
+                      >
+                        <img
+                          src={stockInIcon}
+                          alt="Stock In"
+                          style={{ width: "18px" }}
+                        />
+                      </button>
+                      <button
+                        className="stock-out"
+                        title="Stock Out"
+                        onClick={() => openStockModal(item, "out")}
+                        style={{ marginLeft: "4px" }}
+                      >
+                        <img
+                          src={stockOutIcon}
+                          alt="Stock Out"
+                          style={{ width: "18px" }}
+                        />
+                      </button>
                     </td>
+                    {/* Stock In/Out Modal */}
+                    {showStockModal && stockItem && (
+                      <div className="modal-bg">
+                        <div className="ingredients-modal">
+                          <div className="adduser-header-bar">
+                            <span className="adduser-title">
+                              {stockType === "in" ? "STOCK IN" : "STOCK OUT"} -{" "}
+                              {stockItem.name}
+                            </span>
+                          </div>
+                          <form
+                            className="adduser-form"
+                            onSubmit={handleStockSubmit}
+                          >
+                            <div className="ingredients-form-row">
+                              <div className="ingredients-form-col">
+                                <label>Date:</label>
+                                <input
+                                  name="date"
+                                  type="date"
+                                  value={stockValues.date}
+                                  onChange={handleStockChange}
+                                  required
+                                />
+                                <label>Quantity:</label>
+                                <input
+                                  name="quantity"
+                                  type="number"
+                                  value={stockValues.quantity}
+                                  onChange={handleStockChange}
+                                  required
+                                  min="1"
+                                />
+                                {stockType === "in" && (
+                                  <>
+                                    <label>Cost:</label>
+                                    <input
+                                      name="cost"
+                                      type="number"
+                                      value={stockValues.cost}
+                                      onChange={handleStockChange}
+                                      required
+                                      min="0"
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {stockError && (
+                              <div
+                                style={{ color: "red", marginBottom: "8px" }}
+                              >
+                                {stockError}
+                              </div>
+                            )}
+                            <div className="modal-actions adduser-actions">
+                              <button
+                                type="submit"
+                                className="btn-confirm"
+                                disabled={loading}
+                              >
+                                {loading ? "Saving..." : "Confirm"}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-cancel"
+                                onClick={() => setShowStockModal(false)}
+                                disabled={loading}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    )}
                   </tr>
                 ))
               )}
@@ -471,48 +909,39 @@ export default function IngredientsDashboard() {
                     </select>
 
                     <label>Item Code:</label>
-                    <select
+                    <input
                       name="code"
+                      type="text"
                       value={newItem.code}
                       onChange={(e) => {
                         const code = e.target.value;
-                        const selected = itemCodes[newItem.category]?.find(
-                          (i) => i.code === code
-                        );
                         const unitsArr = unitOptions[code] || [];
                         setNewItem({
                           ...newItem,
                           code,
-                          name: selected ? selected.name : "",
                           units: unitsArr[0] || "",
                         });
                       }}
                       required
                       disabled={!newItem.category}
-                    >
-                      <option value="">Select Code</option>
-                      {newItem.category &&
-                        itemCodes[newItem.category].map((item) => (
-                          <option key={item.code} value={item.code}>
-                            {item.code}
-                          </option>
-                        ))}
-                    </select>
+                      placeholder="Type or paste item code"
+                    />
 
                     <label>Item Name:</label>
-                    <input name="name" value={newItem.name} readOnly required />
-                  </div>
-                  <div className="ingredients-form-col">
-                    <label>Quantity:</label>
                     <input
-                      name="quantity"
-                      type="number"
-                      value={newItem.quantity}
+                      name="name"
+                      type="text"
+                      value={newItem.name}
                       onChange={(e) =>
-                        setNewItem({ ...newItem, quantity: e.target.value })
+                        setNewItem({ ...newItem, name: e.target.value })
                       }
                       required
+                      placeholder="Type item name"
+                      disabled={!newItem.category}
                     />
+                  </div>
+                  <div className="ingredients-form-col">
+                    {/* Quantity is now managed via stock movements */}
                     <label>Units:</label>
                     <select
                       name="units"
@@ -531,16 +960,7 @@ export default function IngredientsDashboard() {
                           </option>
                         ))}
                     </select>
-                    <label>Cost:</label>
-                    <input
-                      name="cost"
-                      type="number"
-                      value={newItem.cost}
-                      onChange={(e) =>
-                        setNewItem({ ...newItem, cost: e.target.value })
-                      }
-                      required
-                    />
+                    {/* Cost is now managed via stock movements */}
                   </div>
                 </div>
                 <div className="modal-actions adduser-actions">
@@ -621,14 +1041,7 @@ export default function IngredientsDashboard() {
                     </select>
                   </div>
                   <div className="ingredients-form-col">
-                    <label>Quantity:</label>
-                    <input
-                      name="quantity"
-                      type="number"
-                      value={editValues.quantity}
-                      onChange={handleEditChange}
-                      required
-                    />
+                    {/* Quantity is now managed via stock movements */}
                     <label>Units:</label>
                     <select
                       name="units"
@@ -644,14 +1057,7 @@ export default function IngredientsDashboard() {
                           </option>
                         ))}
                     </select>
-                    <label>Cost:</label>
-                    <input
-                      name="cost"
-                      type="number"
-                      value={editValues.cost}
-                      onChange={handleEditChange}
-                      required
-                    />
+                    {/* Cost is now managed via stock movements */}
                   </div>
                 </div>
                 <div className="modal-actions adduser-actions">
