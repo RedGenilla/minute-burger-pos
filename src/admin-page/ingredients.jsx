@@ -124,6 +124,22 @@ const unitOptions = {
 
 export default function IngredientsDashboard() {
   // ...existing state...
+  // Helper: get latest unit cost for an ingredient using robust ordering
+  const getLatestUnitCost = async (ingredientId) => {
+    const { data: stockIns, error } = await supabase
+      .from("stock_movement")
+      .select("cost, date, created_at, id")
+      .eq("ingredient_id", ingredientId)
+      .eq("type", "in")
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1);
+    if (!error && stockIns && stockIns.length > 0) {
+      return Number(stockIns[0].cost) || 0;
+    }
+    return 0;
+  };
   // Automatically update menu item status based on inventory
   const updateMenuItemStatus = async () => {
     // Fetch all menu items
@@ -414,8 +430,16 @@ export default function IngredientsDashboard() {
     // Fetch stock movements and aggregate
     const { data: movements, error: movementsError } = await supabase
       .from("stock_movement")
-      .select("ingredient_id, type, quantity, cost");
+      .select("ingredient_id, type, quantity, cost, date, created_at, id");
     if (!movementsError && movements) {
+      // Sort movements so the latest 'in' per ingredient is last
+      movements.sort((a, b) => {
+        const d = new Date(a.date) - new Date(b.date);
+        if (d !== 0) return d;
+        const c = new Date(a.created_at || 0) - new Date(b.created_at || 0);
+        if (c !== 0) return c;
+        return (a.id || 0) - (b.id || 0);
+      });
       // Aggregate by ingredient_id
       const summary = {};
       movements.forEach((m) => {
@@ -424,7 +448,7 @@ export default function IngredientsDashboard() {
         }
         if (m.type === "in") {
           summary[m.ingredient_id].quantity += Number(m.quantity);
-          summary[m.ingredient_id].lastCost = Number(m.cost); // Use last cost for display
+          summary[m.ingredient_id].lastCost = Number(m.cost); // latest due to sort
         } else if (m.type === "out" || m.type === "Stock Out") {
           summary[m.ingredient_id].quantity -= Number(m.quantity);
         }
@@ -438,15 +462,103 @@ export default function IngredientsDashboard() {
 
   useEffect(() => {
     fetchItems();
+    // Supabase Realtime subscription for stock_movement changes
+    const subscription = supabase
+      .channel("public:stock_movement")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        () => {
+          fetchItems();
+        }
+      )
+      .subscribe();
+    // Auto-update total_unit_cost for menu-list when ingredient costs change (stock_movement)
+    const subStockMovementCost = supabase
+      .channel("stock-movement-cost-update")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        async () => {
+          // Fetch all menu items
+          const { data: allMenuItems, error: menuError } = await supabase
+            .from("menu-list")
+            .select();
+          if (menuError || !allMenuItems) return;
+          for (const menuItem of allMenuItems) {
+            // Get ingredients for this menu item
+            const { data: menuIngredients, error: menuIngError } =
+              await supabase
+                .from("menu_ingredients")
+                .select("ingredient_id, amount")
+                .eq("menu_id", menuItem.id);
+            if (menuIngError || !menuIngredients) continue;
+            let totalUnitCost = 0;
+            for (const ing of menuIngredients) {
+              const unitCost = await getLatestUnitCost(ing.ingredient_id);
+              totalUnitCost += unitCost * Number(ing.amount);
+            }
+            // Update menu-list with new total_unit_cost if changed
+            if (totalUnitCost !== menuItem.total_unit_cost) {
+              await supabase
+                .from("menu-list")
+                .update({ total_unit_cost: totalUnitCost })
+                .eq("id", menuItem.id);
+            }
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(subscription);
+      supabase.removeChannel(subStockMovementCost);
+    };
   }, []);
 
   // Add item
   const addItem = async (e) => {
     e.preventDefault();
     setLoading(true);
+    // Validation: check required fields
+    if (!newItem.code || !newItem.name || !newItem.category || !newItem.units) {
+      alert("All fields are required.");
+      setLoading(false);
+      return;
+    }
+    // Validation: check for duplicate code or name
+    const { data: existingItems, error: fetchError } = await supabase
+      .from("ingredient-list")
+      .select("code, name");
+    if (fetchError) {
+      alert("Error checking for duplicates: " + fetchError.message);
+      setLoading(false);
+      return;
+    }
+    const duplicateCode = existingItems.some(
+      (item) =>
+        item.code.trim().toLowerCase() === newItem.code.trim().toLowerCase()
+    );
+    const duplicateName = existingItems.some(
+      (item) =>
+        item.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
+    );
+    if (duplicateCode) {
+      alert("Item code already exists. Please use a unique code.");
+      setLoading(false);
+      return;
+    }
+    if (duplicateName) {
+      alert("Item name already exists. Please use a unique name.");
+      setLoading(false);
+      return;
+    }
     // Status is always 'Inactive' for new items; quantity managed via stock movements
+    // Only include valid columns for ingredient-list
     const itemToAdd = {
-      ...newItem,
+      code: newItem.code,
+      name: newItem.name,
+      category: newItem.category,
+      units: newItem.units,
       status: "Inactive",
     };
     const { error } = await supabase
@@ -459,7 +571,6 @@ export default function IngredientsDashboard() {
         name: "",
         category: "",
         units: "",
-        cost: "",
         status: "Inactive",
       });
       // Immediately fetch latest inventory and menu item status after adding
@@ -467,6 +578,8 @@ export default function IngredientsDashboard() {
       // Optionally, fetch menu-list status if you want to show it in the UI
       // const { data: menuItems } = await supabase.from("menu-list").select("id, name, status");
       // setMenuItems(menuItems || []);
+    } else {
+      alert("Failed to add item: " + (error.message || JSON.stringify(error)));
     }
     setLoading(false);
   };

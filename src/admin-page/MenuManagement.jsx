@@ -146,24 +146,13 @@ export default function MenuBoard() {
     const fetchAndSetIngredient = async () => {
       let unitCost = 0;
       try {
-        // Find ingredient by name
         const { data: ingData, error: ingError } = await supabase
           .from("ingredient-list")
           .select("id")
           .eq("name", editIngredientForm.name)
           .single();
         if (!ingError && ingData) {
-          // Get most recent stock in for this ingredient
-          const { data: stockIns, error: stockError } = await supabase
-            .from("stock_movement")
-            .select("cost, date")
-            .eq("ingredient_id", ingData.id)
-            .eq("type", "in")
-            .order("date", { ascending: false })
-            .limit(1);
-          if (!stockError && stockIns && stockIns.length > 0) {
-            unitCost = parseFloat(stockIns[0].cost);
-          }
+          unitCost = await getLatestUnitCost(ingData.id);
         }
       } catch {}
       const amount = parseFloat(editIngredientForm.amount);
@@ -211,6 +200,23 @@ export default function MenuBoard() {
     image: null,
     ingredients: [], // local state for form
   });
+
+  // Helper: get latest unit cost for an ingredient from stock_movement
+  const getLatestUnitCost = async (ingredientId) => {
+    const { data: stockIns, error: stockError } = await supabase
+      .from("stock_movement")
+      .select("cost, date, created_at, id")
+      .eq("ingredient_id", ingredientId)
+      .eq("type", "in")
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1);
+    if (!stockError && stockIns && stockIns.length > 0) {
+      return Number(stockIns[0].cost) || 0;
+    }
+    return 0;
+  };
 
   // itemCodes mapping from ingredients.jsx
   const itemCodes = {
@@ -351,24 +357,13 @@ export default function MenuBoard() {
     // Only fetch unit cost for display, do not block on inventory
     let unitCost = 0;
     try {
-      // Find ingredient by name
       const { data: ingData, error: ingError } = await supabase
         .from("ingredient-list")
         .select("id")
         .eq("name", ingredientName)
         .single();
       if (!ingError && ingData) {
-        // Get most recent stock in for this ingredient
-        const { data: stockIns, error: stockError } = await supabase
-          .from("stock_movement")
-          .select("cost, date")
-          .eq("ingredient_id", ingData.id)
-          .eq("type", "in")
-          .order("date", { ascending: false })
-          .limit(1);
-        if (!stockError && stockIns && stockIns.length > 0) {
-          unitCost = parseFloat(stockIns[0].cost);
-        }
+        unitCost = await getLatestUnitCost(ingData.id);
       }
     } catch {}
 
@@ -478,9 +473,47 @@ export default function MenuBoard() {
         }
       )
       .subscribe();
+    // Auto-update total_unit_cost for menu-list when ingredient costs change (stock_movement)
+    const subStockMovement = supabase
+      .channel("stock-movement-cost-update")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        async () => {
+          // Fetch all menu items
+          const { data: allMenuItems, error: menuError } = await supabase
+            .from("menu-list")
+            .select();
+          if (menuError || !allMenuItems) return;
+          for (const menuItem of allMenuItems) {
+            // Get ingredients for this menu item
+            const { data: menuIngredients, error: menuIngError } =
+              await supabase
+                .from("menu_ingredients")
+                .select("ingredient_id, amount")
+                .eq("menu_id", menuItem.id);
+            if (menuIngError || !menuIngredients) continue;
+            let totalUnitCost = 0;
+            for (const ing of menuIngredients) {
+              const unitCost = await getLatestUnitCost(ing.ingredient_id);
+              totalUnitCost += unitCost * Number(ing.amount);
+            }
+            // Update menu-list with new total_unit_cost if changed
+            if (totalUnitCost !== menuItem.total_unit_cost) {
+              await supabase
+                .from("menu-list")
+                .update({ total_unit_cost: totalUnitCost })
+                .eq("id", menuItem.id);
+            }
+          }
+          fetchMenu();
+        }
+      )
+      .subscribe();
     return () => {
       supabase.removeChannel(subMenu);
       supabase.removeChannel(subInventory);
+      supabase.removeChannel(subStockMovement);
     };
   }, [filter, showForm, refreshMenu]);
 
@@ -591,7 +624,21 @@ export default function MenuBoard() {
         .getPublicUrl(fileName);
       image_url = publicUrlData.publicUrl;
     }
-    // Insert menu item
+    // Calculate total_unit_cost for this menu item
+    let totalUnitCost = 0;
+    for (const ing of newItem.ingredients) {
+      // Find ingredient_id from ingredient-list
+      const { data: ingData, error: ingError } = await supabase
+        .from("ingredient-list")
+        .select("id")
+        .eq("name", ing.name)
+        .single();
+      if (ingError || !ingData) continue;
+      const unitCost = await getLatestUnitCost(ingData.id);
+      totalUnitCost += unitCost * Number(ing.amount);
+    }
+
+    // Insert menu item with total_unit_cost
     const { data: menuInsert, error: menuError } = await supabase
       .from("menu-list")
       .insert([
@@ -602,6 +649,7 @@ export default function MenuBoard() {
           status: itemStatus,
           description: newItem.description,
           image_url: image_url,
+          total_unit_cost: totalUnitCost,
         },
       ])
       .select();
@@ -655,7 +703,7 @@ export default function MenuBoard() {
       image: null,
       ingredients: [],
     });
-    setShowIngredientForm(false);
+    setShowIngredientModal(false);
     setIngredientForm({ name: "", amount: "", unit: "" });
     setEditIndex(null);
     setIngredientErrors({});
@@ -773,6 +821,22 @@ export default function MenuBoard() {
           created_at: new Date().toISOString(),
         });
       }
+      // Recalculate total_unit_cost for this menu item using latest costs
+      let recalculatedCost = 0;
+      for (const ing of editItem.ingredients) {
+        const { data: ingData, error: ingError } = await supabase
+          .from("ingredient-list")
+          .select("id")
+          .eq("name", ing.name)
+          .single();
+        if (ingError || !ingData) continue;
+        const unitCost = await getLatestUnitCost(ingData.id);
+        recalculatedCost += unitCost * Number(ing.amount);
+      }
+      await supabase
+        .from("menu-list")
+        .update({ total_unit_cost: recalculatedCost })
+        .eq("id", editItem.id);
       setShowEditModal(false);
       setRefreshMenu((prev) => !prev);
     }
@@ -976,7 +1040,6 @@ export default function MenuBoard() {
                             }));
                           }
                         }}
-                        required
                       />
                     </div>
 

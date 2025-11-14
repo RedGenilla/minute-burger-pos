@@ -109,30 +109,16 @@ export default function SalesReport() {
         // Fetch all orders
         const { data: ordersData, error: ordersError } = await supabase
           .from("orders")
-          .select("id, total_price");
+          .select("id, total_price, created_at")
+          .gte("created_at", `${startDate}T00:00:00`)
+          .lte("created_at", `${endDate}T23:59:59.999999`);
         setOrders(ordersData || []);
         // Fetch menu-list
         const { data: menuListData, error: menuListError } = await supabase
           .from("menu-list")
           .select("id, item_name, price");
         setMenuList(menuListData || []);
-        // Build menu cost map from menu_ingredients
-        const costMap = {};
-        for (const menu of menuListData || []) {
-          const { data: menuIngredients } = await supabase
-            .from("menu_ingredients")
-            .select("total_cost")
-            .eq("menu_id", menu.id);
-          let totalCost = 0;
-          if (menuIngredients) {
-            totalCost = menuIngredients.reduce(
-              (sum, ing) => sum + (parseFloat(ing.total_cost) || 0),
-              0
-            );
-          }
-          costMap[menu.item_name] = totalCost;
-        }
-        setMenuIngredientCosts(costMap);
+        // We'll compute cost per menu item from order_items (latest and totals)
 
         // Fetch all order_items for the orders
         const orderIds = (ordersData || []).map((order) => order.id);
@@ -140,31 +126,54 @@ export default function SalesReport() {
         if (orderIds.length > 0) {
           const { data: orderItems, error: orderItemsError } = await supabase
             .from("order_items")
-            .select("id, order_id, menu_item_id, quantity, price")
+            .select(
+              "id, order_id, menu_item_id, quantity, price, unit_cost, created_at"
+            )
             .in("order_id", orderIds);
           orderItemsData = orderItems || [];
         }
 
         // Build lookup maps for menu-list
         const menuIdToName = {};
-        const menuIdToPrice = {};
         (menuListData || []).forEach((menu) => {
           menuIdToName[menu.id] = menu.item_name;
-          menuIdToPrice[menu.id] = parseFloat(menu.price) || 0;
         });
 
         // Count products and revenue
         const productCount = {};
         const productRevenue = {};
+        const costSumByName = {};
+        const latestUnitCostByName = {};
+        const latestCreatedAtByName = {};
         for (const item of orderItemsData) {
           const menuId = item.menu_item_id;
           const itemName = menuIdToName[menuId] || `Unknown (${menuId})`;
-          const price = menuIdToPrice[menuId] || 0;
+          const price = parseFloat(item.price) || 0;
           const quantity = item.quantity || 1;
           productCount[itemName] = (productCount[itemName] || 0) + quantity;
           productRevenue[itemName] =
             (productRevenue[itemName] || 0) + price * quantity;
+          const unitCost = parseFloat(item.unit_cost);
+          if (!isNaN(unitCost)) {
+            costSumByName[itemName] =
+              (costSumByName[itemName] || 0) + unitCost * quantity;
+            const createdAt = item.created_at
+              ? new Date(item.created_at).getTime()
+              : 0;
+            if (
+              latestCreatedAtByName[itemName] === undefined ||
+              createdAt > latestCreatedAtByName[itemName]
+            ) {
+              latestCreatedAtByName[itemName] = createdAt;
+              latestUnitCostByName[itemName] = unitCost;
+            }
+          }
         }
+
+        // Save latest unit cost for display and total cost for profit
+        setMenuIngredientCosts(latestUnitCostByName);
+        const costTotalsByName = costSumByName;
+        // expose totals via state by reusing a hidden property on setOrders? Prefer separate state below.
 
         // Add-ons (optional)
         const addOnRevenue = {};
@@ -196,6 +205,9 @@ export default function SalesReport() {
         setBestSellers(sorted);
         console.log("Best sellers computed:", sorted);
 
+        // Store cost totals map on a ref-like state for later profit calc
+        setCostTotals(costTotalsByName);
+
         // Calculate total sales
         let totalSalesValue = 0;
         if (ordersData && ordersData.length > 0) {
@@ -212,7 +224,7 @@ export default function SalesReport() {
       }
     };
     fetchData();
-  }, []);
+  }, [startDate, endDate]);
 
   // Calculate summary values
   // Calculate summary values
@@ -220,14 +232,16 @@ export default function SalesReport() {
   // Total items sold: sum of all counts from bestSellers
   const totalItemsSold = bestSellers.reduce((acc, item) => acc + item.count, 0);
 
-  // Calculate total profit from best sellers
-  // Total profit: sum of (revenue - cost) for each menu item (exclude add-ons)
+  // Keep a map of total costs per item (sum of unit_cost * qty from order_items)
+  const [costTotals, setCostTotals] = useState({});
+
+  // Calculate total profit from best sellers using per-row cost totals
   const totalProfit =
     bestSellers && bestSellers.length > 0
       ? bestSellers.reduce((acc, item) => {
           if (!item.isAddOn) {
-            const unitCost = menuIngredientCosts[item.name] || 0;
-            return acc + (item.revenue - unitCost * item.count);
+            const totalCost = costTotals[item.name] || 0;
+            return acc + (item.revenue - totalCost);
           }
           return acc;
         }, 0)
@@ -275,7 +289,8 @@ export default function SalesReport() {
             className={`nav-item${lowStockCount > 0 ? " nav-item-red" : ""}`}
             style={{
               position: "relative",
-              background: lowStockCount > 0 ? "rgba(255, 0, 0, 0.45)" : undefined,
+              background:
+                lowStockCount > 0 ? "rgba(255, 0, 0, 0.45)" : undefined,
               color: lowStockCount > 0 ? "#222" : undefined,
               fontWeight: lowStockCount > 0 ? "bold" : undefined,
               transition: "background 0.2s",
@@ -507,8 +522,9 @@ export default function SalesReport() {
                         const unitPrice =
                           item.count > 0 ? item.revenue / item.count : 0;
                         const totalSales = item.revenue;
-                        const unitCost = menuIngredientCosts[item.name] || 0;
-                        const profit = totalSales - unitCost * item.count;
+                        const unitCost = menuIngredientCosts[item.name] || 0; // latest snapshot among included orders
+                        const totalCost = costTotals[item.name] || 0; // sum of unit_cost * qty
+                        const profit = totalSales - totalCost;
 
                         return (
                           <tr key={item.name}>
