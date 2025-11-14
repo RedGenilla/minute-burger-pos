@@ -333,7 +333,7 @@ export default function AdminBoard() {
                   <td colSpan="6">No user found.</td>
                 </tr>
               ) : (
-                paginatedUsers.map((u, idx) => (
+                paginatedUsers.map((u) => (
                   <tr key={u.id}>
                     <td>{u.username}</td>
                     <td>{u.email}</td>

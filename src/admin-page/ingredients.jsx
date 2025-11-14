@@ -204,7 +204,6 @@ export default function IngredientsDashboard() {
       }
     }
   };
-
   const fetchTransactions = async () => {
     const { data, error } = await supabase
       .from("stock_movement")
@@ -212,7 +211,6 @@ export default function IngredientsDashboard() {
       .order("date", { ascending: false });
     if (!error && data) setTransactions(data);
   };
-
   const openStockModal = (item, type) => {
     setStockItem(item);
     setStockType(type);
@@ -421,7 +419,13 @@ export default function IngredientsDashboard() {
         units: "",
         status: "Inactive",
       });
+      // Immediately fetch latest inventory and menu item status after adding
       await fetchItems();
+      // Optionally, fetch menu-list status if you want to show it in the UI
+      // const { data: menuItems } = await supabase.from("menu-list").select("id, name, status");
+      // setMenuItems(menuItems || []);
+    } else {
+      alert("Failed to add item: " + (error.message || JSON.stringify(error)));
     }
     setLoading(false);
   };
@@ -443,7 +447,11 @@ export default function IngredientsDashboard() {
       .eq("id", editItem.id);
     if (!error) {
       setShowEditModal(false);
+      // Immediately fetch latest inventory and menu item status after editing
       await fetchItems();
+      // Optionally, fetch menu-list status if you want to show it in the UI
+      // const { data: menuItems } = await supabase.from("menu-list").select("id, name, status");
+      // setMenuItems(menuItems || []);
     }
     setLoading(false);
   };
@@ -1001,7 +1009,84 @@ export default function IngredientsDashboard() {
                           />
                         </svg>
                       </button>
+                      {/* duplicate img-based icons removed; inline SVG buttons above used instead */}
                     </td>
+                    {/* Stock In/Out Modal */}
+                    {showStockModal && stockItem && (
+                      <div className="modal-bg">
+                        <div className="ingredients-modal">
+                          <div className="adduser-header-bar">
+                            <span className="adduser-title">
+                              {stockType === "in" ? "STOCK IN" : "STOCK OUT"} -{" "}
+                              {stockItem.name}
+                            </span>
+                          </div>
+                          <form
+                            className="adduser-form"
+                            onSubmit={handleStockSubmit}
+                          >
+                            <div className="ingredients-form-row">
+                              <div className="ingredients-form-col">
+                                <label>Date:</label>
+                                <input
+                                  name="date"
+                                  type="date"
+                                  value={stockValues.date}
+                                  onChange={handleStockChange}
+                                  required
+                                />
+                                <label>Quantity:</label>
+                                <input
+                                  name="quantity"
+                                  type="number"
+                                  value={stockValues.quantity}
+                                  onChange={handleStockChange}
+                                  required
+                                  min="1"
+                                />
+                                {stockType === "in" && (
+                                  <>
+                                    <label>Cost:</label>
+                                    <input
+                                      name="cost"
+                                      type="number"
+                                      value={stockValues.cost}
+                                      onChange={handleStockChange}
+                                      required
+                                      min="0"
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {stockError && (
+                              <div
+                                style={{ color: "red", marginBottom: "8px" }}
+                              >
+                                {stockError}
+                              </div>
+                            )}
+                            <div className="modal-actions adduser-actions">
+                              <button
+                                type="submit"
+                                className="btn-confirm"
+                                disabled={loading}
+                              >
+                                {loading ? "Saving..." : "Confirm"}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-cancel"
+                                onClick={() => setShowStockModal(false)}
+                                disabled={loading}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    )}
                   </tr>
                 ))
               )}

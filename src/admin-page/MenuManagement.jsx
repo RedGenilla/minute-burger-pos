@@ -19,20 +19,69 @@ const _getUnitsForIngredientName = (ingredientName, itemCodes, unitOptions) => {
 };
 
 export default function MenuBoard() {
-  const { session } = UserAuth();
+  // Low stock notifier for Inventory sidebar
+  const [_lowStockCount, setLowStockCount] = useState(0);
+
+  useEffect(() => {
+    // Fetch low stock count from ingredient-list and stock_movement
+    const fetchLowStock = async () => {
+      const { data: ingredients, error: ingError } = await supabase
+        .from("ingredient-list")
+        .select("id");
+      if (ingError || !ingredients) return;
+      const { data: movements, error: movError } = await supabase
+        .from("stock_movement")
+        .select("ingredient_id, type, quantity");
+      if (movError || !movements) return;
+      const summary = {};
+      for (const ing of ingredients) summary[ing.id] = 0;
+      for (const m of movements) {
+        if (summary[m.ingredient_id] !== undefined) {
+          summary[m.ingredient_id] +=
+            m.type === "in" ? m.quantity : -m.quantity;
+        }
+      }
+      const count = Object.values(summary).filter(
+        (q) => q > 0 && q <= 5
+      ).length;
+      setLowStockCount(count);
+    };
+    fetchLowStock();
+    const sub = supabase
+      .channel("stock-movement-lowstock")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        fetchLowStock
+      )
+      .subscribe();
+    return () => supabase.removeChannel(sub);
+  }, []);
+  // Place order logic should use normalized tables (handled elsewhere)
+  // ...existing code...
+  // Ingredient list for dropdown
   const [ingredientOptions, setIngredientOptions] = useState([]);
+  const { session, signOut: _signOut } = UserAuth();
+
+  // Fetch ingredient-list and aggregate quantity/cost from stock_movement for dropdown
   useEffect(() => {
     const fetchIngredients = async () => {
-      const { data: ingredients } = await supabase
+      // Get all ingredients
+      const { data: ingredients, error: ingError } = await supabase
         .from("ingredient-list")
         .select("id, name, code");
-      const { data: movements } = await supabase
+      if (ingError || !ingredients) return;
+      // Get all stock movements
+      const { data: movements, error: movError } = await supabase
         .from("stock_movement")
         .select("ingredient_id, type, quantity, cost");
+      if (movError || !movements) return;
+      // Aggregate quantity and last cost for each ingredient
       const summary = {};
-      (movements || []).forEach((m) => {
-        if (!summary[m.ingredient_id])
+      movements.forEach((m) => {
+        if (!summary[m.ingredient_id]) {
           summary[m.ingredient_id] = { quantity: 0, lastCost: 0 };
+        }
         if (m.type === "in") {
           summary[m.ingredient_id].quantity += Number(m.quantity);
           summary[m.ingredient_id].lastCost = Number(m.cost);
@@ -40,7 +89,8 @@ export default function MenuBoard() {
           summary[m.ingredient_id].quantity -= Number(m.quantity);
         }
       });
-      const options = (ingredients || [])
+      // Merge with ingredient list and filter only those with quantity > 0
+      const options = ingredients
         .map((ing) => ({
           id: ing.id,
           name: ing.name,
@@ -48,7 +98,7 @@ export default function MenuBoard() {
           quantity: summary[ing.id]?.quantity || 0,
           cost: summary[ing.id]?.lastCost || 0,
         }))
-        .filter((o) => o.quantity > 0);
+        .filter((opt) => opt.quantity > 0);
       setIngredientOptions(options);
     };
     fetchIngredients();
@@ -93,20 +143,13 @@ export default function MenuBoard() {
     const applyIngredient = async () => {
       let unitCost = 0;
       try {
-        const { data: ingData } = await supabase
+        const { data: ingData, error: ingError } = await supabase
           .from("ingredient-list")
           .select("id")
           .eq("name", editIngredientForm.name)
           .single();
-        if (ingData) {
-          const { data: stockIns } = await supabase
-            .from("stock_movement")
-            .select("cost,date")
-            .eq("ingredient_id", ingData.id)
-            .eq("type", "in")
-            .order("date", { ascending: false })
-            .limit(1);
-          if (stockIns?.length) unitCost = parseFloat(stockIns[0].cost);
+        if (!ingError && ingData) {
+          unitCost = await getLatestUnitCost(ingData.id);
         }
       } catch (err) {
         console.warn("Failed to compute unitCost for edit ingredient:", err);
@@ -156,9 +199,27 @@ export default function MenuBoard() {
     status: "Active",
     description: "",
     image: null,
-    ingredients: [],
+    ingredients: [], // local state for form
   });
 
+  // Helper: get latest unit cost for an ingredient from stock_movement
+  const getLatestUnitCost = async (ingredientId) => {
+    const { data: stockIns, error: stockError } = await supabase
+      .from("stock_movement")
+      .select("cost, date, created_at, id")
+      .eq("ingredient_id", ingredientId)
+      .eq("type", "in")
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1);
+    if (!stockError && stockIns && stockIns.length > 0) {
+      return Number(stockIns[0].cost) || 0;
+    }
+    return 0;
+  };
+
+  // itemCodes mapping from ingredients.jsx
   const itemCodes = {
     BR: [
       { code: "BR-001", name: "Burger Bun (Regular)" },
@@ -291,22 +352,16 @@ export default function MenuBoard() {
       setIngredientError("Please fill in all fields.");
       return;
     }
+    // Only fetch unit cost for display, do not block on inventory
     let unitCost = 0;
     try {
-      const { data: ingData } = await supabase
+      const { data: ingData, error: ingError } = await supabase
         .from("ingredient-list")
         .select("id")
         .eq("name", ingredientName)
         .single();
-      if (ingData) {
-        const { data: stockIns } = await supabase
-          .from("stock_movement")
-          .select("cost,date")
-          .eq("ingredient_id", ingData.id)
-          .eq("type", "in")
-          .order("date", { ascending: false })
-          .limit(1);
-        if (stockIns?.length) unitCost = parseFloat(stockIns[0].cost);
+      if (!ingError && ingData) {
+        unitCost = await getLatestUnitCost(ingData.id);
       }
     } catch (err) {
       console.warn("Failed to compute unitCost for ingredient:", err);
@@ -356,6 +411,7 @@ export default function MenuBoard() {
       setLoading(false);
     };
     fetchMenu();
+    // Listen for ingredient-list changes to auto-update menu item status
     const subMenu = supabase
       .channel("menu-list-status")
       .on(
@@ -364,38 +420,160 @@ export default function MenuBoard() {
         fetchMenu
       )
       .subscribe();
+    const subInventory = supabase
+      .channel("ingredient-list-status")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ingredient-list" },
+        async () => {
+          // When inventory changes, check all menu items and update status
+          const { data: allMenuItems, error: menuError } = await supabase
+            .from("menu-list")
+            .select();
+          if (menuError || !allMenuItems) return;
+          for (const menuItem of allMenuItems) {
+            // Get ingredients for this menu item
+            const { data: menuIngredients, error: ingError } = await supabase
+              .from("menu_ingredients")
+              .select("ingredient_id, amount, ingredient-list(name)")
+              .eq("menu_id", menuItem.id);
+            if (ingError || !menuIngredients) continue;
+            // Build array of {name, amount}
+            const ingredients = menuIngredients.map((ing) => ({
+              name: ing["ingredient-list"]?.name || "",
+              amount: ing.amount,
+            }));
+            // Check if all ingredients are available
+            const { data: inventory, error: invError } = await supabase
+              .from("ingredient-list")
+              .select("name, quantity");
+            if (invError || !inventory) continue;
+            let isAvailable = true;
+            for (const ing of ingredients) {
+              const inv = inventory.find((i) => i.name === ing.name);
+              if (!inv || Number(ing.amount) > Number(inv.quantity)) {
+                isAvailable = false;
+                break;
+              }
+            }
+            // If status needs to change, update menu-list
+            const newStatus = isAvailable ? "Active" : "Inactive";
+            if (menuItem.status !== newStatus) {
+              await supabase
+                .from("menu-list")
+                .update({ status: newStatus })
+                .eq("id", menuItem.id);
+            }
+          }
+          fetchMenu();
+        }
+      )
+      .subscribe();
+    // Auto-update total_unit_cost for menu-list when ingredient costs change (stock_movement)
+    const subStockMovement = supabase
+      .channel("stock-movement-cost-update")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        async () => {
+          // Fetch all menu items
+          const { data: allMenuItems, error: menuError } = await supabase
+            .from("menu-list")
+            .select();
+          if (menuError || !allMenuItems) return;
+          for (const menuItem of allMenuItems) {
+            // Get ingredients for this menu item
+            const { data: menuIngredients, error: menuIngError } =
+              await supabase
+                .from("menu_ingredients")
+                .select("ingredient_id, amount")
+                .eq("menu_id", menuItem.id);
+            if (menuIngError || !menuIngredients) continue;
+            let totalUnitCost = 0;
+            for (const ing of menuIngredients) {
+              const unitCost = await getLatestUnitCost(ing.ingredient_id);
+              totalUnitCost += unitCost * Number(ing.amount);
+            }
+            // Update menu-list with new total_unit_cost if changed
+            if (totalUnitCost !== menuItem.total_unit_cost) {
+              await supabase
+                .from("menu-list")
+                .update({ total_unit_cost: totalUnitCost })
+                .eq("id", menuItem.id);
+            }
+          }
+          fetchMenu();
+        }
+      )
+      .subscribe();
     return () => {
       supabase.removeChannel(subMenu);
+      supabase.removeChannel(subInventory);
+      supabase.removeChannel(subStockMovement);
     };
   }, [filter, showForm, refreshMenu]);
 
+  // add item
+  // Helper to check ingredient availability using stock_movement aggregation
   const checkIngredientsAvailability = async (ingredients) => {
-    const { data: ingredientList } = await supabase
+    // Get all ingredients with their IDs
+    const { data: ingredientList, error: ingError } = await supabase
       .from("ingredient-list")
       .select("id, name");
-    const { data: movements } = await supabase
+    if (ingError || !ingredientList) {
+      console.log("Error fetching ingredient-list:", ingError);
+      return false;
+    }
+    // Get all stock movements
+    const { data: movements, error: movError } = await supabase
       .from("stock_movement")
       .select("ingredient_id, type, quantity");
+    if (movError || !movements) {
+      console.log("Error fetching stock_movement:", movError);
+      return false;
+    }
+    // Aggregate inventory for each ingredient
     const inventoryMap = {};
-    (movements || []).forEach((m) => {
+    movements.forEach((m) => {
       if (!inventoryMap[m.ingredient_id]) inventoryMap[m.ingredient_id] = 0;
-      inventoryMap[m.ingredient_id] +=
-        m.type === "in" ? m.quantity : -m.quantity;
+      if (m.type === "in") inventoryMap[m.ingredient_id] += Number(m.quantity);
+      else if (m.type === "out")
+        inventoryMap[m.ingredient_id] -= Number(m.quantity);
     });
-    let all = true;
+    let allAvailable = true;
+    let debugSummary = [];
     for (const ing of ingredients) {
-      const ingredientObj = (ingredientList || []).find(
+      // Use case-insensitive match for ingredient name
+      const ingredientObj = ingredientList.find(
         (i) =>
           i.name.trim().toLowerCase() === String(ing.name).trim().toLowerCase()
       );
       if (!ingredientObj) {
-        all = false;
+        console.log("Ingredient not found:", ing.name);
+        debugSummary.push({ name: ing.name, found: false });
+        allAvailable = false;
         continue;
       }
-      const available = inventoryMap[ingredientObj.id] || 0;
-      if (Number(ing.amount) > available) all = false;
+      const availableQty = inventoryMap[ingredientObj.id] || 0;
+      const requiredQty = Number(ing.amount);
+      debugSummary.push({
+        name: ing.name,
+        found: true,
+        required: requiredQty,
+        available: availableQty,
+      });
+      console.log(
+        `Checking ingredient: ${ing.name}, required: ${requiredQty}, available: ${availableQty}`
+      );
+      if (requiredQty > availableQty) {
+        console.log(
+          `Insufficient inventory for ${ing.name}: required ${requiredQty}, available ${availableQty}`
+        );
+        allAvailable = false;
+      }
     }
-    return all;
+    console.log("Ingredient availability summary:", debugSummary);
+    return allAvailable;
   };
 
   const addItem = async (e) => {
@@ -437,7 +615,21 @@ export default function MenuBoard() {
         .getPublicUrl(fileName);
       image_url = publicUrlData.publicUrl;
     }
+    // Calculate total_unit_cost for this menu item
+    let totalUnitCost = 0;
+    for (const ing of newItem.ingredients) {
+      // Find ingredient_id from ingredient-list
+      const { data: ingData, error: ingError } = await supabase
+        .from("ingredient-list")
+        .select("id")
+        .eq("name", ing.name)
+        .single();
+      if (ingError || !ingData) continue;
+      const unitCost = await getLatestUnitCost(ingData.id);
+      totalUnitCost += unitCost * Number(ing.amount);
+    }
 
+    // Insert menu item with total_unit_cost
     const { data: menuInsert, error: menuError } = await supabase
       .from("menu-list")
       .insert([
@@ -448,6 +640,7 @@ export default function MenuBoard() {
           status: itemStatus,
           description: newItem.description,
           image_url,
+          total_unit_cost: totalUnitCost,
         },
       ])
       .select();
@@ -526,6 +719,7 @@ export default function MenuBoard() {
     setRefreshMenu((p) => !p);
   };
 
+  // edit item
   const openEditModal = (m) => {
     const fetchIngredients = async () => {
       const { data: ingList } = await supabase
@@ -565,29 +759,49 @@ export default function MenuBoard() {
         description: editItem.description,
       })
       .eq("id", editItem.id);
-    if (error) {
-      setEditError("Failed to update item");
-      setEditLoading(false);
-      return;
+    if (error) setEditError("Failed to update item");
+    else {
+      // Remove old ingredients and insert new ones
+      await supabase
+        .from("menu_ingredients")
+        .delete()
+        .eq("menu_id", editItem.id);
+      for (const ing of editItem.ingredients) {
+        // Find ingredient_id from ingredient-list
+        const { data: ingData, error: ingError } = await supabase
+          .from("ingredient-list")
+          .select("id")
+          .eq("name", ing.name)
+          .single();
+        if (ingError || !ingData) continue;
+        await supabase.from("menu_ingredients").insert({
+          menu_id: editItem.id,
+          ingredient_id: ingData.id,
+          amount: Number(ing.amount),
+          unit: ing.unit,
+          total_cost: Number(ing.total_cost),
+          created_at: new Date().toISOString(),
+        });
+      }
+      // Recalculate total_unit_cost for this menu item using latest costs
+      let recalculatedCost = 0;
+      for (const ing of editItem.ingredients) {
+        const { data: ingData, error: ingError } = await supabase
+          .from("ingredient-list")
+          .select("id")
+          .eq("name", ing.name)
+          .single();
+        if (ingError || !ingData) continue;
+        const unitCost = await getLatestUnitCost(ingData.id);
+        recalculatedCost += unitCost * Number(ing.amount);
+      }
+      await supabase
+        .from("menu-list")
+        .update({ total_unit_cost: recalculatedCost })
+        .eq("id", editItem.id);
+      setShowEditModal(false);
+      setRefreshMenu((prev) => !prev);
     }
-    await supabase.from("menu_ingredients").delete().eq("menu_id", editItem.id);
-    for (const ing of editItem.ingredients) {
-      const { data: ingData } = await supabase
-        .from("ingredient-list")
-        .select("id")
-        .eq("name", ing.name)
-        .single();
-      if (!ingData) continue;
-      await supabase.from("menu_ingredients").insert({
-        menu_id: editItem.id,
-        ingredient_id: ingData.id,
-        amount: Number(ing.amount),
-        unit: ing.unit,
-        total_cost: Number(ing.total_cost),
-        created_at: new Date().toISOString(),
-      });
-    }
-    setShowEditModal(false);
     setEditLoading(false);
     setRefreshMenu((p) => !p);
   };
@@ -628,6 +842,10 @@ export default function MenuBoard() {
   return (
     <div className="opswat-admin">
       <AdminSidebar active="menu-management" />
+      {/* Example usage: Place order for first menu item (for testing) */}
+      {/* <button onClick={() => placeOrder(menuItems[0]?.id, 1)}>Test Order (Deduct Ingredients)</button> */}
+
+      {/* Main */}
       <main className="ops-main">
         <header className="ops-header">
           <h1>Menu Management</h1>
@@ -864,7 +1082,6 @@ export default function MenuBoard() {
                             }));
                           }
                         }}
-                        required
                       />
                     </div>
 
