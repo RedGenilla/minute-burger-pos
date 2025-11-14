@@ -150,12 +150,14 @@
 .logout-modal-actions {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 18px;
 }
 
 .btn-cancel,
 .btn-confirm {
   padding: 8px 16px;
+  width: 50px;
   border: none;
   border-radius: 2px;
   font-weight: 700;
@@ -169,4 +171,28 @@
 .btn-confirm {
   background: #22c55e;
   color: #fff;
+}
+
+/* Logout modal layout tweaks */
+.logout-modal-actions .btn-cancel,
+.logout-modal-actions .btn-confirm {
+  width: auto !important;
+  min-width: 0;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.logout-modal {
+  max-width: 340px;
+  padding: 20px 22px;
+}
+
+.logout-modal-title {
+  margin: 0 0 8px;
+}
+
+.logout-modal-text {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
 }

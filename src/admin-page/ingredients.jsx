@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+// Replaced PNG icons with inline SVGs for stock in/out actions
+import { UserAuth } from "../authenticator/AuthContext";
 import { supabase } from "../supabaseClient";
-import "./ingredients.css"; // Use the same CSS as MenuManagement for unified UI
+import "./ingredients.css";
 import AdminSidebar from "./AdminSidebar";
 
 const categoryOptions = [
@@ -14,6 +16,7 @@ const categoryOptions = [
   { value: "EX", label: "EX/Add-on" },
 ];
 
+/* eslint-disable no-unused-vars */
 const itemCodes = {
   BR: [
     { code: "BR-001", name: "Burger Bun (Regular)" },
@@ -111,13 +114,192 @@ const unitOptions = {
   "EX-002": ["pc"],
   "EX-003": ["g"],
 };
+/* eslint-enable no-unused-vars */
 
 export default function IngredientsDashboard() {
-  // Place order and deduct ingredients using normalized tables
-  // orderData: { user_id, order_items, total_price, payment_type }
+  const { session } = UserAuth();
+  useEffect(() => {
+    if (session === null) window.location.href = "/login";
+  }, [session]);
+
+  const LOW_STOCK_THRESHOLD = 5;
+
+  const [items, setItems] = useState([]);
+  const [stockSummary, setStockSummary] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const [showForm, setShowForm] = useState(false);
+  const [newItem, setNewItem] = useState({
+    code: "",
+    name: "",
+    category: "",
+    units: "",
+    status: "Inactive",
+  });
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editValues, setEditValues] = useState({
+    code: "",
+    name: "",
+    category: "",
+    units: "",
+    status: "Inactive",
+  });
+
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("Status");
+  const [categoryFilter, setCategoryFilter] = useState("Category");
+
+  const [showTransactionsModal, setShowTransactionsModal] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [txTypeFilter, setTxTypeFilter] = useState("All");
+  const [txCategoryFilter, setTxCategoryFilter] = useState("All");
+  const [txSearchInput, setTxSearchInput] = useState("");
+  const [txSearch, setTxSearch] = useState("");
+
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [stockType, setStockType] = useState("in");
+  const [stockItem, setStockItem] = useState(null);
+  const [stockValues, setStockValues] = useState({
+    date: "",
+    quantity: "",
+    cost: "",
+  });
+  const [stockError, setStockError] = useState("");
+
+  const updateMenuItemStatus = async () => {
+    const { data: menuItems, error: menuError } = await supabase
+      .from("menu-list")
+      .select("id, status");
+    if (menuError || !menuItems) return;
+    for (const menuItem of menuItems) {
+      const { data: menuIngredients, error: ingError } = await supabase
+        .from("menu_ingredients")
+        .select("ingredient_id, amount")
+        .eq("menu_id", menuItem.id);
+      if (ingError || !menuIngredients) continue;
+      let isAvailable = true;
+      for (const ing of menuIngredients) {
+        const { data: movements, error: movError } = await supabase
+          .from("stock_movement")
+          .select("type, quantity")
+          .eq("ingredient_id", ing.ingredient_id);
+        if (movError || !movements) continue;
+        let currentQty = 0;
+        for (const m of movements) {
+          currentQty += m.type === "in" ? m.quantity : -m.quantity;
+        }
+        if (currentQty < Number(ing.amount)) {
+          isAvailable = false;
+          break;
+        }
+      }
+      const newStatus = isAvailable ? "Active" : "Inactive";
+      if (menuItem.status !== newStatus) {
+        await supabase
+          .from("menu-list")
+          .update({ status: newStatus })
+          .eq("id", menuItem.id);
+      }
+    }
+  };
+
+  const fetchTransactions = async () => {
+    const { data, error } = await supabase
+      .from("stock_movement")
+      .select("*, ingredient-list(name, code)")
+      .order("date", { ascending: false });
+    if (!error && data) setTransactions(data);
+  };
+
+  const openStockModal = (item, type) => {
+    setStockItem(item);
+    setStockType(type);
+    setStockValues({ date: "", quantity: "", cost: "" });
+    setShowStockModal(true);
+  };
+
+  const handleStockChange = (e) => {
+    const { name, value } = e.target;
+    setStockValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleStockSubmit = async (e) => {
+    e.preventDefault();
+    setStockError("");
+    if (!stockItem) {
+      setStockError("No item selected.");
+      return;
+    }
+    if (!stockValues.date) {
+      setStockError("Date is required.");
+      return;
+    }
+    if (
+      !stockValues.quantity ||
+      isNaN(stockValues.quantity) ||
+      Number(stockValues.quantity) <= 0
+    ) {
+      setStockError("Quantity must be a positive number.");
+      return;
+    }
+    if (stockType === "in") {
+      if (
+        !stockValues.cost ||
+        isNaN(stockValues.cost) ||
+        Number(stockValues.cost) < 0
+      ) {
+        setStockError("Cost must be zero or a positive number.");
+        return;
+      }
+    }
+    if (stockType === "out") {
+      let currentQty = 0;
+      const { data: movements } = await supabase
+        .from("stock_movement")
+        .select("type, quantity")
+        .eq("ingredient_id", stockItem.id);
+      if (movements) {
+        for (const m of movements)
+          currentQty += m.type === "in" ? m.quantity : -m.quantity;
+      }
+      const outQty = Number(stockValues.quantity);
+      if (outQty > currentQty) {
+        setStockError(`Cannot stock out more than available (${currentQty}).`);
+        return;
+      }
+      if (currentQty - outQty < 0) {
+        setStockError("Negative inventory not allowed.");
+        return;
+      }
+    }
+    setLoading(true);
+    const txData = {
+      ingredient_id: stockItem.id,
+      type: stockType,
+      date: stockValues.date,
+      quantity: Number(stockValues.quantity),
+      status: "Active",
+      created_at: new Date().toISOString(),
+      ...(stockType === "in" && { cost: Number(stockValues.cost) }),
+    };
+    const { error } = await supabase.from("stock_movement").insert(txData);
+    if (error) {
+      setStockError("Failed to save transaction: " + error.message);
+      setLoading(false);
+      return;
+    }
+    setShowStockModal(false);
+    setStockItem(null);
+    setStockValues({ date: "", quantity: "", cost: "" });
+    await fetchItems();
+    setLoading(false);
+  };
+
+  // (Kept for parity; not invoked here)
   const _placeOrderAndDeduct = async (orderData) => {
     try {
-      // 1. Insert order
       const { data: orderInsert, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -128,15 +310,8 @@ export default function IngredientsDashboard() {
           created_at: new Date().toISOString(),
         })
         .select();
-      if (orderError || !orderInsert || !orderInsert[0]) {
-        alert(
-          "Error placing order: " + (orderError?.message || "No order inserted")
-        );
-        return;
-      }
+      if (orderError || !orderInsert?.[0]) return;
       const orderId = orderInsert[0].id;
-
-      // 2. Insert order_items and get their IDs
       for (const item of orderData.order_items) {
         const { data: itemInsert, error: itemError } = await supabase
           .from("order_items")
@@ -148,19 +323,16 @@ export default function IngredientsDashboard() {
             created_at: new Date().toISOString(),
           })
           .select();
-        if (itemError || !itemInsert || !itemInsert[0]) continue;
+        if (itemError || !itemInsert?.[0]) continue;
         const orderItemId = itemInsert[0].id;
-
-        // 3. Insert order_item_ingredients for each ingredient
         if (Array.isArray(item.ingredients)) {
           for (const ing of item.ingredients) {
-            // Find ingredient_id from ingredient-list
-            const { data: ingData, error: ingError } = await supabase
+            const { data: ingData } = await supabase
               .from("ingredient-list")
               .select("id")
               .eq("name", ing.name)
               .single();
-            if (ingError || !ingData) continue;
+            if (!ingData) continue;
             await supabase.from("order_item_ingredients").insert({
               order_item_id: orderItemId,
               ingredient_id: ingData.id,
@@ -170,95 +342,73 @@ export default function IngredientsDashboard() {
           }
         }
       }
-
-      // 4. Deduct inventory based on order_item_ingredients
-      // Aggregate ingredient totals from order_item_ingredients for this order
-      const { data: usedIngredients, error: usedError } = await supabase
+      const { data: used } = await supabase
         .from("order_items")
         .select("id")
         .eq("order_id", orderId);
-      if (!usedError && usedIngredients) {
-        for (const oi of usedIngredients) {
-          const { data: ingList, error: ingListError } = await supabase
+      if (used) {
+        for (const oi of used) {
+          const { data: ingList } = await supabase
             .from("order_item_ingredients")
             .select("ingredient_id, amount")
             .eq("order_item_id", oi.id);
-          if (!ingListError && ingList) {
+          if (ingList) {
             for (const ing of ingList) {
-              // Fetch current quantity
-              const { data: invData, error: invError } = await supabase
-                .from("ingredient-list")
-                .select("id, quantity")
-                .eq("id", ing.ingredient_id)
-                .single();
-              if (invError || !invData) continue;
-              const currentQty = Number(invData.quantity) || 0;
-              const newQty = Math.max(currentQty - Number(ing.amount), 0);
-              await supabase
-                .from("ingredient-list")
-                .update({ quantity: newQty })
-                .eq("id", invData.id);
+              await supabase.from("stock_movement").insert({
+                ingredient_id: ing.ingredient_id,
+                type: "out",
+                quantity: Number(ing.amount),
+                date: new Date().toISOString(),
+                status: "Active",
+                created_at: new Date().toISOString(),
+              });
             }
           }
         }
       }
-
-      alert("Order placed and inventory updated.");
-      await fetchItems(); // Refresh inventory
-    } catch (err) {
-      alert("Error: " + err.message);
+      await fetchItems();
+    } catch {
+      /* no-op */
     }
   };
-  // ...existing code...
 
-  // sidebar state handled by shared AdminSidebar
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [editValues, setEditValues] = useState({
-    code: "",
-    name: "",
-    category: "",
-    units: "",
-    cost: "",
-    quantity: "",
-    status: "Inactive",
-  });
-  const [newItem, setNewItem] = useState({
-    code: "",
-    name: "",
-    category: "",
-    units: "",
-    cost: "",
-    quantity: "",
-    status: "Inactive",
-  });
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("Status");
-
-  // Fetch items from Supabase
   const fetchItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("ingredient-list").select("*");
-    if (!error) setItems(data || []);
+    const { data: itemsData } = await supabase
+      .from("ingredient-list")
+      .select("*");
+    setItems(itemsData || []);
+    const { data: movements } = await supabase
+      .from("stock_movement")
+      .select("ingredient_id, type, quantity, cost");
+    if (movements) {
+      const summary = {};
+      movements.forEach((m) => {
+        if (!summary[m.ingredient_id]) {
+          summary[m.ingredient_id] = { quantity: 0, lastCost: 0 };
+        }
+        if (m.type === "in") {
+          summary[m.ingredient_id].quantity += Number(m.quantity);
+          summary[m.ingredient_id].lastCost = Number(m.cost);
+        } else if (m.type === "out") {
+          summary[m.ingredient_id].quantity -= Number(m.quantity);
+        }
+      });
+      setStockSummary(summary);
+    }
+    await updateMenuItemStatus();
     setLoading(false);
   };
 
   useEffect(() => {
     fetchItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Add item
   const addItem = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // Auto-toggle status based on quantity
-    const itemToAdd = {
-      ...newItem,
-      status: Number(newItem.quantity) > 0 ? "Active" : "Inactive",
-    };
+    const itemToAdd = { ...newItem, status: "Inactive" };
     const { error } = await supabase
       .from("ingredient-list")
       .insert([itemToAdd]);
@@ -269,7 +419,6 @@ export default function IngredientsDashboard() {
         name: "",
         category: "",
         units: "",
-        cost: "",
         status: "Inactive",
       });
       await fetchItems();
@@ -277,28 +426,20 @@ export default function IngredientsDashboard() {
     setLoading(false);
   };
 
-  // Edit modal handlers
   const openEditModal = (item) => {
     setEditItem(item);
     setEditValues({ ...item });
     setShowEditModal(true);
   };
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditValues((prev) => ({ ...prev, [name]: value }));
-  };
+
+  // removed unused handleEditChange to satisfy lint rules
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // Auto-toggle status based on quantity
-    const updatedValues = {
-      ...editValues,
-      status: Number(editValues.quantity) > 0 ? "Active" : "Inactive",
-    };
     const { error } = await supabase
       .from("ingredient-list")
-      .update(updatedValues)
+      .update({ ...editValues })
       .eq("id", editItem.id);
     if (!error) {
       setShowEditModal(false);
@@ -307,57 +448,382 @@ export default function IngredientsDashboard() {
     setLoading(false);
   };
 
-  // Filtered & searched items
   const displayedItems = items
     .filter(
       (item) =>
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         item.code.toLowerCase().includes(search.toLowerCase())
     )
-    .filter((item) => (filter === "Status" ? true : item.status === filter))
-    .map((item) => ({
-      ...item,
-      status: Number(item.quantity) > 0 ? "Active" : "Inactive",
-    }));
+    .map((item) => {
+      const summary = stockSummary[item.id] || { quantity: 0, lastCost: 0 };
+      let status = "Inactive";
+      let lowStock = false;
+      if (summary.quantity > LOW_STOCK_THRESHOLD) {
+        status = "Active";
+      } else if (summary.quantity > 0) {
+        status = "Active";
+        if (summary.quantity <= LOW_STOCK_THRESHOLD) lowStock = true;
+      }
+      return {
+        ...item,
+        quantity: summary.quantity,
+        cost: summary.lastCost,
+        status,
+        lowStock,
+      };
+    })
+    .filter((item) => {
+      if (filter === "Active" || filter === "Inactive")
+        return item.status === filter;
+      return true;
+    })
+    .filter((item) =>
+      categoryFilter === "Category" ? true : item.category === categoryFilter
+    );
 
   return (
     <div className="opswat-admin">
-      {/* Sidebar */}
-      <AdminSidebar active="inventory" />
+      <AdminSidebar
+        active="inventory"
+        lowStockCount={(() => {
+          try {
+            const count = (items || [])
+              .filter(
+                (item) =>
+                  item.name.toLowerCase().includes(search.toLowerCase()) ||
+                  item.code.toLowerCase().includes(search.toLowerCase())
+              )
+              .map((item) => {
+                const summary = stockSummary[item.id] || {
+                  quantity: 0,
+                  lastCost: 0,
+                };
+                let lowStock = false;
+                if (
+                  summary.quantity > 0 &&
+                  summary.quantity <= LOW_STOCK_THRESHOLD
+                ) {
+                  lowStock = true;
+                }
+                return { ...item, lowStock };
+              })
+              .filter((item) => {
+                if (filter === "Active" || filter === "Inactive") {
+                  const summary = stockSummary[item.id] || { quantity: 0 };
+                  const status = summary.quantity > 0 ? "Active" : "Inactive";
+                  return status === filter;
+                }
+                return true;
+              })
+              .filter((item) => item.lowStock).length;
+            return count;
+          } catch {
+            return 0;
+          }
+        })()}
+      />
 
-      {/* Main */}
       <main className="ops-main">
         <header className="ops-header">
           <h1>Inventory</h1>
-          <button className="add-btn" onClick={() => setShowForm(true)}>
-            Add Item +
-          </button>
         </header>
-
-        <div className="ops-controls">
-          <input
-            type="text"
-            className="search"
-            placeholder="Search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option>Status</option>
-            <option>Active</option>
-            <option>Inactive</option>
-          </select>
+        <div className="ops-controls ops-controls-row">
+          <div className="controls-left">
+            <div className="search-input-wrap">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="search-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                className="search"
+                placeholder="Search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select
+              className="status-filter"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              <option>Status</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+            <select
+              className="category-filter"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option>Category</option>
+              {categoryOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="controls-right">
+            <button
+              className="transactions-btn gray-btn"
+              onClick={async () => {
+                await fetchTransactions();
+                setShowTransactionsModal(true);
+              }}
+              type="button"
+            >
+              Stock Transactions
+            </button>
+            <button
+              className="add-btn"
+              onClick={() => setShowForm(true)}
+              type="button"
+            >
+              + Add Item
+            </button>
+          </div>
         </div>
+
+        {showTransactionsModal && (
+          <div className="modal-bg">
+            <div
+              className="adminboard-modal"
+              style={{ maxWidth: "400px", width: "100%", textAlign: "left" }}
+            >
+              <button
+                className="modal-close-x"
+                onClick={() => setShowTransactionsModal(false)}
+                aria-label="Close modal"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="25"
+                  height="25"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#000000"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: "block" }}
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+              <span className="adduser-title">Stock Transactions</span>
+
+              {/* Filters: Search (row 1), then Type and Category (row 2) */}
+              <div style={{ margin: "6px 0 8px" }}>
+                <div className="search-input-wrap" style={{ width: "100%" }}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="search-icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <input
+                    type="text"
+                    className="search"
+                    placeholder="Search"
+                    value={txSearchInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTxSearchInput(val);
+                      setTxSearch(val);
+                    }}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  margin: "0 0 10px",
+                }}
+              >
+                <select
+                  value={txTypeFilter}
+                  onChange={(e) => setTxTypeFilter(e.target.value)}
+                  style={{
+                    padding: "6px 8px",
+                    border: "1px solid #ccc",
+                    borderRadius: 6,
+                    flex: 1,
+                  }}
+                >
+                  <option value="All">All Types</option>
+                  <option value="in">Stock In</option>
+                  <option value="out">Stock Out</option>
+                </select>
+                <select
+                  value={txCategoryFilter}
+                  onChange={(e) => setTxCategoryFilter(e.target.value)}
+                  style={{
+                    padding: "6px 8px",
+                    border: "1px solid #ccc",
+                    borderRadius: 6,
+                    flex: 1,
+                  }}
+                >
+                  <option value="All">All Categories</option>
+                  {categoryOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div
+                style={{
+                  maxHeight: "400px",
+                  minHeight: "220px",
+                  overflowY: "auto",
+                }}
+              >
+                {transactions
+                  .filter((tx) =>
+                    txTypeFilter === "All" ? true : tx.type === txTypeFilter
+                  )
+                  .filter((tx) => {
+                    if (txCategoryFilter === "All") return true;
+                    const code = tx["ingredient-list"]?.code || "";
+                    const prefix = code.split("-")[0] || "";
+                    return prefix === txCategoryFilter;
+                  })
+                  .filter((tx) => {
+                    if (!txSearch) return true;
+                    const nm = (
+                      tx["ingredient-list"]?.name || ""
+                    ).toLowerCase();
+                    return nm.includes(txSearch.toLowerCase());
+                  }).length === 0 ? (
+                  <div style={{ padding: "16px" }}>
+                    {txCategoryFilter !== "All"
+                      ? `No transactions in this category.`
+                      : `No transactions found.`}
+                  </div>
+                ) : (
+                  transactions
+                    .filter((tx) =>
+                      txTypeFilter === "All" ? true : tx.type === txTypeFilter
+                    )
+                    .filter((tx) => {
+                      if (txCategoryFilter === "All") return true;
+                      const code = tx["ingredient-list"]?.code || "";
+                      const prefix = code.split("-")[0] || "";
+                      return prefix === txCategoryFilter;
+                    })
+                    .filter((tx) => {
+                      if (!txSearch) return true;
+                      const nm = (
+                        tx["ingredient-list"]?.name || ""
+                      ).toLowerCase();
+                      return nm.includes(txSearch.toLowerCase());
+                    })
+                    .map((tx) => (
+                      <div
+                        key={tx.id}
+                        style={{
+                          border: "1px solid #ccc",
+                          borderRadius: "8px",
+                          margin: "8px 0",
+                          padding: "12px",
+                          background: tx.type === "in" ? "#e6ffe6" : "#ffe6e6",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                          Name: {tx["ingredient-list"]?.name || "Unknown"}
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
+                          Category: {tx["ingredient-list"]?.code || ""}
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
+                          Type:{" "}
+                          <b
+                            style={{
+                              color: tx.type === "in" ? "green" : "red",
+                            }}
+                          >
+                            {tx.type.toUpperCase()}
+                          </b>
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
+                          Quantity: {tx.quantity}
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
+                          Cost: ₱
+                          {tx.type === "in"
+                            ? tx.cost
+                            : (() => {
+                                const recentIn = transactions
+                                  .filter(
+                                    (t2) =>
+                                      t2.ingredient_id === tx.ingredient_id &&
+                                      t2.type === "in" &&
+                                      new Date(t2.date) <= new Date(tx.date)
+                                  )
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.date) - new Date(a.date)
+                                  )[0];
+                                return recentIn ? recentIn.cost : "-";
+                              })()}
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Old simple controls removed; unified controls row above */}
 
         <div className="table-wrap">
           <table className="ops-table">
+            <colgroup>
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "100px" }} />
+              <col />
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "120px" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Category</th>
                 <th>Item Code</th>
                 <th>Item Name</th>
-                <th>Quantity</th>
                 <th>Units</th>
+                <th>Quantity</th>
                 <th>Cost</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -376,24 +842,164 @@ export default function IngredientsDashboard() {
                 </tr>
               ) : (
                 displayedItems.map((item) => (
-                  <tr key={item.id}>
+                  <tr
+                    key={item.id}
+                    style={
+                      item.lowStock ? { background: "#ffe6e6" } : undefined
+                    }
+                  >
                     <td>{item.category}</td>
                     <td>{item.code}</td>
                     <td>{item.name}</td>
-                    <td>{item.quantity ?? 0}</td>
                     <td>{item.units}</td>
-                    <td>₱{item.cost}.00</td>
+                    <td>{item.quantity}</td>
+                    <td>₱{item.cost}</td>
                     <td>
                       <span className={`status ${item.status.toLowerCase()}`}>
                         {item.status}
                       </span>
+                      {item.lowStock && (
+                        <span
+                          style={{
+                            background: "red",
+                            color: "white",
+                            borderRadius: "6px",
+                            padding: "2px 8px",
+                            marginLeft: "8px",
+                            fontSize: "0.8em",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          Low Stock
+                        </span>
+                      )}
                     </td>
                     <td>
                       <button
-                        className="edit"
+                        className="edit-icon-btn"
                         onClick={() => openEditModal(item)}
+                        aria-label="Edit user"
+                        title="Edit"
                       >
-                        ✏️
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                          <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.41l-2.34-2.34a1.003 1.003 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                        </svg>
+                      </button>
+                      <button
+                        className="stock-in"
+                        title="Stock In"
+                        onClick={() => openStockModal(item, "in")}
+                        style={{
+                          marginLeft: "4px",
+                          padding: 0,
+                          background: "none",
+                          border: "none",
+                        }}
+                        aria-label="Stock In"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          {/* OUTER BORDER */}
+                          <rect
+                            x="1"
+                            y="1"
+                            width="22"
+                            height="22"
+                            stroke="#000"
+                            strokeWidth="1"
+                            fill="none"
+                            rx="4"
+                            ry="4"
+                          />
+
+                          {/* INNER BOX */}
+                          <rect
+                            x="5"
+                            y="8"
+                            width="14"
+                            height="10"
+                            fill="#f7d64d"
+                            stroke="#f7d64d"
+                            strokeWidth="2  "
+                          />
+
+                          {/* ARROW DOWN */}
+                          <path
+                            d="M12 4v8m0 0l-3-3m3 3l3-3"
+                            stroke="#000"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+
+                      <button
+                        className="stock-out"
+                        title="Stock Out"
+                        onClick={() => openStockModal(item, "out")}
+                        style={{
+                          marginLeft: "4px",
+                          padding: 0,
+                          background: "none",
+                          border: "none",
+                        }}
+                        aria-label="Stock Out"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          {/* OUTER BORDER */}
+                          <rect
+                            x="1"
+                            y="1"
+                            width="22"
+                            height="22"
+                            stroke="#000"
+                            strokeWidth="1"
+                            fill="none"
+                            rx="4"
+                            ry="4"
+                          />
+
+                          {/* INNER BOX */}
+                          <rect
+                            x="5"
+                            y="6"
+                            width="14"
+                            height="10"
+                            fill="#e46700"
+                            stroke="#e46700"
+                            strokeWidth="2"
+                          />
+
+                          {/* ARROW UP */}
+                          <path
+                            d="M12 20V12m0 0l-3 3m3-3l3 3"
+                            stroke="#000"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       </button>
                     </td>
                   </tr>
@@ -403,122 +1009,98 @@ export default function IngredientsDashboard() {
           </table>
         </div>
 
-        {/* Add Item Modal */}
-        {showForm && (
+        {showStockModal && stockItem && (
           <div className="modal-bg">
-            <div className="ingredients-modal">
-              <div className="adduser-header-bar">
-                <span className="adduser-title">ADD ITEM</span>
-              </div>
-              <form className="adduser-form" onSubmit={addItem}>
-                <div className="ingredients-form-row">
-                  <div className="ingredients-form-col">
-                    <label>Category:</label>
-                    <select
-                      name="category"
-                      value={newItem.category}
-                      onChange={(e) => {
-                        const category = e.target.value;
-                        setNewItem({
-                          ...newItem,
-                          category,
-                          code: "",
-                          name: "",
-                        });
-                      }}
-                      required
-                    >
-                      <option value="">Select Category</option>
-                      {categoryOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+            <div
+              className="adminboard-modal"
+              style={{ width: "420px", textAlign: "left" }}
+            >
+              <button
+                className="modal-close-x"
+                onClick={() => setShowStockModal(false)}
+                aria-label="Close modal"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="25"
+                  height="25"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#000000"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: "block" }}
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+              <span className="adduser-title">
+                {stockType === "in" ? "STOCK IN" : "STOCK OUT"} -{" "}
+                {stockItem.name}
+              </span>
+              <form className="adduser-form" onSubmit={handleStockSubmit}>
+                <label>Date</label>
+                <input
+                  name="date"
+                  type="date"
+                  value={stockValues.date}
+                  onChange={handleStockChange}
+                  required
+                />
 
-                    <label>Item Code:</label>
-                    <select
-                      name="code"
-                      value={newItem.code}
-                      onChange={(e) => {
-                        const code = e.target.value;
-                        const selected = itemCodes[newItem.category]?.find(
-                          (i) => i.code === code
-                        );
-                        const unitsArr = unitOptions[code] || [];
-                        setNewItem({
-                          ...newItem,
-                          code,
-                          name: selected ? selected.name : "",
-                          units: unitsArr[0] || "",
-                        });
-                      }}
-                      required
-                      disabled={!newItem.category}
-                    >
-                      <option value="">Select Code</option>
-                      {newItem.category &&
-                        itemCodes[newItem.category].map((item) => (
-                          <option key={item.code} value={item.code}>
-                            {item.code}
-                          </option>
-                        ))}
-                    </select>
-
-                    <label>Item Name:</label>
-                    <input name="name" value={newItem.name} readOnly required />
+                {stockType === "in" ? (
+                  <div className="two-col-row">
+                    <div>
+                      <label>Quantity</label>
+                      <input
+                        name="quantity"
+                        type="number"
+                        value={stockValues.quantity}
+                        onChange={handleStockChange}
+                        required
+                        min="1"
+                      />
+                    </div>
+                    <div>
+                      <label>Cost</label>
+                      <input
+                        name="cost"
+                        type="number"
+                        value={stockValues.cost}
+                        onChange={handleStockChange}
+                        required
+                        min="0"
+                      />
+                    </div>
                   </div>
-                  <div className="ingredients-form-col">
-                    <label>Quantity:</label>
+                ) : (
+                  <>
+                    <label>Quantity</label>
                     <input
                       name="quantity"
                       type="number"
-                      value={newItem.quantity}
-                      onChange={(e) =>
-                        setNewItem({ ...newItem, quantity: e.target.value })
-                      }
+                      value={stockValues.quantity}
+                      onChange={handleStockChange}
                       required
+                      min="1"
                     />
-                    <label>Units:</label>
-                    <select
-                      name="units"
-                      value={newItem.units}
-                      onChange={(e) =>
-                        setNewItem({ ...newItem, units: e.target.value })
-                      }
-                      required
-                      disabled={!newItem.code}
-                    >
-                      <option value="">Select Unit</option>
-                      {newItem.code &&
-                        unitOptions[newItem.code]?.map((unit) => (
-                          <option key={unit} value={unit}>
-                            {unit}
-                          </option>
-                        ))}
-                    </select>
-                    <label>Cost:</label>
-                    <input
-                      name="cost"
-                      type="number"
-                      value={newItem.cost}
-                      onChange={(e) =>
-                        setNewItem({ ...newItem, cost: e.target.value })
-                      }
-                      required
-                    />
+                  </>
+                )}
+
+                {stockError && (
+                  <div style={{ color: "red", marginBottom: "8px" }}>
+                    {stockError}
                   </div>
-                </div>
-                <div className="modal-actions adduser-actions">
-                  <button type="submit" className="btn-confirm">
-                    Confirm
-                  </button>
+                )}
+                <div className="single-confirm-wrap">
                   <button
-                    type="button"
-                    className="btn-cancel"
-                    onClick={() => setShowForm(false)}
+                    type="submit"
+                    className="btn-confirm full-width-confirm"
+                    disabled={loading}
                   >
-                    Cancel
+                    {loading ? "Saving..." : "Confirm"}
                   </button>
                 </div>
               </form>
@@ -526,110 +1108,189 @@ export default function IngredientsDashboard() {
           </div>
         )}
 
-        {/* Edit Item Modal */}
+        {showForm && (
+          <div className="modal-bg">
+            <div className="adminboard-modal">
+              <button
+                className="modal-close-x"
+                onClick={() => setShowForm(false)}
+                aria-label="Close modal"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="25"
+                  height="25"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#000000"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: "block" }}
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+              <span className="adduser-title">ADD ITEM</span>
+              <form className="adduser-form" onSubmit={addItem}>
+                {/* Row 1: Name */}
+                <label>Item Name</label>
+                <input
+                  name="name"
+                  type="text"
+                  value={newItem.name}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, name: e.target.value })
+                  }
+                  required
+                  placeholder="Type item name"
+                />
+
+                {/* Row 2: Category */}
+                <label>Category</label>
+                <select
+                  name="category"
+                  value={newItem.category}
+                  onChange={(e) => {
+                    const category = e.target.value;
+                    setNewItem({ ...newItem, category });
+                  }}
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {categoryOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Row 3: Item Code + Units side-by-side */}
+                <div className="two-col-row">
+                  <div>
+                    <label>Item Code</label>
+                    <input
+                      name="code"
+                      type="text"
+                      value={newItem.code}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, code: e.target.value })
+                      }
+                      required
+                      placeholder="Type or paste item code"
+                    />
+                  </div>
+                  <div>
+                    <label>Units</label>
+                    <input
+                      name="units"
+                      type="text"
+                      value={newItem.units}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, units: e.target.value })
+                      }
+                      required
+                      placeholder="e.g. pc, g, ml"
+                    />
+                  </div>
+                </div>
+
+                <div className="single-confirm-wrap">
+                  <button
+                    type="submit"
+                    className="btn-confirm full-width-confirm"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {showEditModal && editItem && (
           <div className="modal-bg">
-            <div className="ingredients-modal">
-              <div className="adduser-header-bar">
-                <span className="adduser-title">EDIT ITEM</span>
-              </div>
+            <div className="adminboard-modal">
+              <button
+                className="modal-close-x"
+                onClick={() => setShowEditModal(false)}
+                aria-label="Close modal"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="25"
+                  height="25"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#000000"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: "block" }}
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+              <span className="adduser-title">EDIT ITEM</span>
               <form className="adduser-form" onSubmit={handleEditSubmit}>
-                <div className="ingredients-form-row">
-                  <div className="ingredients-form-col">
-                    <label>Category:</label>
-                    <select
-                      name="category"
-                      value={editValues.category}
-                      disabled
-                      required
-                    >
-                      <option value="">Select Category</option>
-                      {categoryOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                <label>Category</label>
+                <select
+                  name="category"
+                  value={editValues.category}
+                  disabled
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {categoryOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
 
-                    <label>Item Code:</label>
-                    <select
+                <label>Item Name</label>
+                <input name="name" value={editValues.name} readOnly required />
+
+                <div className="two-col-row">
+                  <div>
+                    <label>Item Code</label>
+                    <input
                       name="code"
                       value={editValues.code}
-                      disabled
-                      required
-                    >
-                      <option value="">Select Code</option>
-                      {editValues.category &&
-                        itemCodes[editValues.category].map((item) => (
-                          <option key={item.code} value={item.code}>
-                            {item.code}
-                          </option>
-                        ))}
-                    </select>
-
-                    <label>Item Name:</label>
-                    <input
-                      name="name"
-                      value={editValues.name}
                       readOnly
                       required
                     />
-
-                    <label>Status:</label>
-                    <select
-                      name="status"
-                      value={editValues.status}
-                      disabled
-                      required
-                    >
-                      <option value="Inactive">Inactive</option>
-                      <option value="Active">Active</option>
-                    </select>
                   </div>
-                  <div className="ingredients-form-col">
-                    <label>Quantity:</label>
+                  <div>
+                    <label>Units</label>
                     <input
-                      name="quantity"
-                      type="number"
-                      value={editValues.quantity}
-                      onChange={handleEditChange}
-                      required
-                    />
-                    <label>Units:</label>
-                    <select
                       name="units"
                       value={editValues.units}
-                      disabled
-                      required
-                    >
-                      <option value="">Select Unit</option>
-                      {editValues.code &&
-                        unitOptions[editValues.code]?.map((unit) => (
-                          <option key={unit} value={unit}>
-                            {unit}
-                          </option>
-                        ))}
-                    </select>
-                    <label>Cost:</label>
-                    <input
-                      name="cost"
-                      type="number"
-                      value={editValues.cost}
-                      onChange={handleEditChange}
+                      readOnly
                       required
                     />
                   </div>
                 </div>
-                <div className="modal-actions adduser-actions">
-                  <button type="submit" className="btn-confirm">
-                    Confirm
-                  </button>
+
+                <label>Status</label>
+                <select
+                  name="status"
+                  value={editValues.status}
+                  disabled
+                  required
+                >
+                  <option value="Inactive">Inactive</option>
+                  <option value="Active">Active</option>
+                </select>
+
+                <div className="single-confirm-wrap">
                   <button
-                    type="button"
-                    className="btn-cancel"
-                    onClick={() => setShowEditModal(false)}
+                    type="submit"
+                    className="btn-confirm full-width-confirm"
                   >
-                    Cancel
+                    Confirm
                   </button>
                 </div>
               </form>

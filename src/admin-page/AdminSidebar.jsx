@@ -14,7 +14,7 @@ import "./AdminSidebar.css";
  * Props:
  *   active (string) -> one of: 'user-management', 'menu-management', 'inventory', 'sales-report'
  */
-export default function AdminSidebar({ active }) {
+export default function AdminSidebar({ active, lowStockCount = 0 }) {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -56,7 +56,28 @@ export default function AdminSidebar({ active }) {
           <a
             href="/admin/ingredients-dashboard"
             className={`nav-item ${active === "inventory" ? "active" : ""}`}
+            style={lowStockCount > 0 ? { position: "relative" } : undefined}
           >
+            {lowStockCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: "-8px",
+                  top: "10%",
+                  transform: "translateY(-50%)",
+                  background: "red",
+                  color: "white",
+                  borderRadius: "50%",
+                  padding: "2px 8px",
+                  fontSize: "0.8em",
+                  fontWeight: "bold",
+                  zIndex: 2,
+                  boxShadow: "0 0 2px #0002",
+                }}
+              >
+                {lowStockCount}
+              </span>
+            )}
             <img src={inventoryIcon} alt="Inventory" className="nav-icon" />
             <span>Inventory</span>
           </a>
@@ -67,9 +88,7 @@ export default function AdminSidebar({ active }) {
             <img src={salesIcon} alt="Sales" className="nav-icon" />
             <span>Sales Report</span>
           </a>
-        </nav>
-        <hr className="logout-separator"></hr>
-        <nav className="sidebar-nav-links">
+          <hr className="logout-separator"></hr>
           <a className="nav-item logout-link" onClick={handleLogoutClick}>
             <img src={logoutIcon} alt="Logout" className="nav-icon" />
             <span>Log out</span>

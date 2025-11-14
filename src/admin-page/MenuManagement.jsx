@@ -2,24 +2,54 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { UserAuth } from "../authenticator/AuthContext";
 import "./MenuManagement.css";
-import AdminSidebar from "./AdminSidebar";
+import AdminSidebar from "./AdminSidebar"; // NEW
+
+// Reusable: compute units for an ingredient name
+const _getUnitsForIngredientName = (ingredientName, itemCodes, unitOptions) => {
+  if (!ingredientName) return [];
+  let code = null;
+  for (const group of Object.values(itemCodes || {})) {
+    const found = (group || []).find((i) => i.name === ingredientName);
+    if (found) {
+      code = found.code;
+      break;
+    }
+  }
+  return code && unitOptions?.[code] ? unitOptions[code] : [];
+};
 
 export default function MenuBoard() {
-  // Place order logic should use normalized tables (handled elsewhere)
-  // ...existing code...
-  // Ingredient list for dropdown
-  const [ingredientOptions, setIngredientOptions] = useState([]);
   const { session } = UserAuth();
-
-  // Fetch ingredient-list from Supabase for dropdown
+  const [ingredientOptions, setIngredientOptions] = useState([]);
   useEffect(() => {
     const fetchIngredients = async () => {
-      const { data, error } = await supabase
+      const { data: ingredients } = await supabase
         .from("ingredient-list")
-        .select("name, quantity");
-      if (!error && data) {
-        setIngredientOptions(data); // store as array of objects {name, quantity}
-      }
+        .select("id, name, code");
+      const { data: movements } = await supabase
+        .from("stock_movement")
+        .select("ingredient_id, type, quantity, cost");
+      const summary = {};
+      (movements || []).forEach((m) => {
+        if (!summary[m.ingredient_id])
+          summary[m.ingredient_id] = { quantity: 0, lastCost: 0 };
+        if (m.type === "in") {
+          summary[m.ingredient_id].quantity += Number(m.quantity);
+          summary[m.ingredient_id].lastCost = Number(m.cost);
+        } else if (m.type === "out") {
+          summary[m.ingredient_id].quantity -= Number(m.quantity);
+        }
+      });
+      const options = (ingredients || [])
+        .map((ing) => ({
+          id: ing.id,
+          name: ing.name,
+          code: ing.code,
+          quantity: summary[ing.id]?.quantity || 0,
+          cost: summary[ing.id]?.lastCost || 0,
+        }))
+        .filter((o) => o.quantity > 0);
+      setIngredientOptions(options);
     };
     fetchIngredients();
   }, []);
@@ -28,12 +58,15 @@ export default function MenuBoard() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Status");
-  // sidebar state handled by shared AdminSidebar
+  // NEW: category filter UI state
+  const [categoryFilter, setCategoryFilter] = useState("Category");
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  // Ingredient modal state for edit modal
+
   const [showEditIngredientForm, setShowEditIngredientForm] = useState(false);
   const [editIngredientForm, setEditIngredientForm] = useState({
     name: "",
@@ -43,12 +76,12 @@ export default function MenuBoard() {
   const [editIngredientError, setEditIngredientError] = useState("");
   const [editIngredientIndex, setEditIngredientIndex] = useState(null);
 
-  // Ingredient handlers for edit modal
-  const handleEditModalIngredientChange = async (e) => {
+  const handleEditModalIngredientChange = (e) => {
     const { name, value } = e.target;
     setEditIngredientError("");
-    setEditIngredientForm((prev) => ({ ...prev, [name]: value }));
+    setEditIngredientForm((p) => ({ ...p, [name]: value }));
   };
+
   const handleEditIngredientFormSubmit = (e) => {
     e.preventDefault();
     if (
@@ -57,24 +90,30 @@ export default function MenuBoard() {
       !editIngredientForm.unit
     )
       return;
-    // Fetch unit cost from Supabase ingredient-list
-    const fetchAndSetIngredient = async () => {
+    const applyIngredient = async () => {
       let unitCost = 0;
       try {
-        const { data, error } = await supabase
+        const { data: ingData } = await supabase
           .from("ingredient-list")
-          .select("name, cost")
+          .select("id")
           .eq("name", editIngredientForm.name)
           .single();
-        if (!error && data && data.cost) {
-          unitCost = parseFloat(data.cost);
+        if (ingData) {
+          const { data: stockIns } = await supabase
+            .from("stock_movement")
+            .select("cost,date")
+            .eq("ingredient_id", ingData.id)
+            .eq("type", "in")
+            .order("date", { ascending: false })
+            .limit(1);
+          if (stockIns?.length) unitCost = parseFloat(stockIns[0].cost);
         }
       } catch (err) {
-        void err; // intentionally ignore lookup errors
+        console.warn("Failed to compute unitCost for edit ingredient:", err);
       }
       const amount = parseFloat(editIngredientForm.amount);
       const totalCost = unitCost * amount;
-      const newIngredient = {
+      const newIng = {
         name: editIngredientForm.name,
         amount: editIngredientForm.amount,
         unit: editIngredientForm.unit,
@@ -84,26 +123,28 @@ export default function MenuBoard() {
         setEditItem((prev) => ({
           ...prev,
           ingredients: prev.ingredients.map((ing, i) =>
-            i === editIngredientIndex ? newIngredient : ing
+            i === editIngredientIndex ? newIng : ing
           ),
         }));
       } else {
         setEditItem((prev) => ({
           ...prev,
-          ingredients: [...(prev.ingredients || []), newIngredient],
+          ingredients: [...(prev.ingredients || []), newIng],
         }));
       }
       setShowEditIngredientForm(false);
       setEditIngredientForm({ name: "", amount: "", unit: "" });
       setEditIngredientIndex(null);
     };
-    fetchAndSetIngredient();
+    applyIngredient();
   };
+
   const handleCancelEditIngredient = () => {
     setShowEditIngredientForm(false);
     setEditIngredientForm({ name: "", amount: "", unit: "" });
     setEditIngredientIndex(null);
   };
+
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState("");
   const [refreshMenu, setRefreshMenu] = useState(false);
@@ -115,10 +156,9 @@ export default function MenuBoard() {
     status: "Active",
     description: "",
     image: null,
-    ingredients: [], // local state for form
+    ingredients: [],
   });
 
-  // itemCodes mapping from ingredients.jsx
   const itemCodes = {
     BR: [
       { code: "BR-001", name: "Burger Bun (Regular)" },
@@ -176,7 +216,6 @@ export default function MenuBoard() {
     ],
   };
 
-  // Unit options mapping from ingredients.jsx
   const unitOptions = {
     "BR-001": ["pc"],
     "BR-002": ["pc"],
@@ -218,12 +257,11 @@ export default function MenuBoard() {
     "EX-003": ["g"],
   };
 
-  // Ingredient modal state for add modal
   const [showIngredientModal, setShowIngredientModal] = useState(false);
   const [ingredientName, setIngredientName] = useState("");
   const [ingredientAmount, setIngredientAmount] = useState("");
   const [ingredientUnit, setIngredientUnit] = useState("");
-  const [, setIngredientError] = useState("");
+  const [ingredientError, setIngredientError] = useState("");
   const [ingredientEditIndex, setIngredientEditIndex] = useState(null);
 
   const handleAddIngredient = () => {
@@ -233,7 +271,6 @@ export default function MenuBoard() {
     setIngredientAmount("");
     setIngredientUnit("");
     setIngredientEditIndex(null);
-    // Reset error state for duplicate/over-amount
   };
 
   const handleEditIngredient = (idx) => {
@@ -254,21 +291,26 @@ export default function MenuBoard() {
       setIngredientError("Please fill in all fields.");
       return;
     }
-    // Fetch unit cost from Supabase ingredient-list
     let unitCost = 0;
     try {
-      const { data, error } = await supabase
+      const { data: ingData } = await supabase
         .from("ingredient-list")
-        .select("name, cost")
+        .select("id")
         .eq("name", ingredientName)
         .single();
-      if (!error && data && data.cost) {
-        unitCost = parseFloat(data.cost);
+      if (ingData) {
+        const { data: stockIns } = await supabase
+          .from("stock_movement")
+          .select("cost,date")
+          .eq("ingredient_id", ingData.id)
+          .eq("type", "in")
+          .order("date", { ascending: false })
+          .limit(1);
+        if (stockIns?.length) unitCost = parseFloat(stockIns[0].cost);
       }
     } catch (err) {
-      void err; // intentionally ignore lookup errors
+      console.warn("Failed to compute unitCost for ingredient:", err);
     }
-
     const amount = parseFloat(ingredientAmount);
     const totalCost = unitCost * amount;
     const newIngredient = {
@@ -278,7 +320,6 @@ export default function MenuBoard() {
       total_cost: totalCost.toFixed(2),
     };
     if (ingredientEditIndex !== null) {
-      // Edit existing ingredient
       setNewItem((prev) => ({
         ...prev,
         ingredients: prev.ingredients.map((ing, i) =>
@@ -286,7 +327,6 @@ export default function MenuBoard() {
         ),
       }));
     } else {
-      // Add new ingredient
       setNewItem((prev) => ({
         ...prev,
         ingredients: [...(prev.ingredients || []), newIngredient],
@@ -300,24 +340,23 @@ export default function MenuBoard() {
     setIngredientError("");
   };
 
-  const handleCancelIngredient = () => {
+  const _handleCancelIngredient = () => {
     setShowIngredientModal(false);
     setIngredientError("");
     setIngredientEditIndex(null);
   };
 
-  // fetch & subscribe
   useEffect(() => {
     const fetchMenu = async () => {
       setLoading(true);
-      let query = supabase.from("menu-list").select();
-      if (filter !== "Status") query = query.eq("status", filter);
-      const { data, error } = await query;
-      if (!error) setMenuItems(data || []);
+      let q = supabase.from("menu-list").select();
+      if (filter !== "Status") q = q.eq("status", filter);
+      const { data } = await q;
+      setMenuItems(data || []);
       setLoading(false);
     };
     fetchMenu();
-    const sub = supabase
+    const subMenu = supabase
       .channel("menu-list-status")
       .on(
         "postgres_changes",
@@ -325,29 +364,42 @@ export default function MenuBoard() {
         fetchMenu
       )
       .subscribe();
-    return () => supabase.removeChannel(sub);
+    return () => {
+      supabase.removeChannel(subMenu);
+    };
   }, [filter, showForm, refreshMenu]);
 
-  // add item
-  // Helper to check ingredient availability
   const checkIngredientsAvailability = async (ingredients) => {
-    // Get latest inventory from Supabase
-    const { data: inventory, error } = await supabase
+    const { data: ingredientList } = await supabase
       .from("ingredient-list")
-      .select("name, quantity");
-    if (error || !inventory) return false;
+      .select("id, name");
+    const { data: movements } = await supabase
+      .from("stock_movement")
+      .select("ingredient_id, type, quantity");
+    const inventoryMap = {};
+    (movements || []).forEach((m) => {
+      if (!inventoryMap[m.ingredient_id]) inventoryMap[m.ingredient_id] = 0;
+      inventoryMap[m.ingredient_id] +=
+        m.type === "in" ? m.quantity : -m.quantity;
+    });
+    let all = true;
     for (const ing of ingredients) {
-      const inv = inventory.find((i) => i.name === ing.name);
-      if (!inv || Number(ing.amount) > Number(inv.quantity)) {
-        return false;
+      const ingredientObj = (ingredientList || []).find(
+        (i) =>
+          i.name.trim().toLowerCase() === String(ing.name).trim().toLowerCase()
+      );
+      if (!ingredientObj) {
+        all = false;
+        continue;
       }
+      const available = inventoryMap[ingredientObj.id] || 0;
+      if (Number(ing.amount) > available) all = false;
     }
-    return true;
+    return all;
   };
 
   const addItem = async (e) => {
     e.preventDefault();
-    // Validate required fields
     if (
       !newItem.image ||
       !newItem.item_name.trim() ||
@@ -359,21 +411,17 @@ export default function MenuBoard() {
       alert("Please fill out all fields and upload an image.");
       return;
     }
-    // Check ingredient availability
     const isAvailable = await checkIngredientsAvailability(newItem.ingredients);
     const itemStatus = isAvailable ? "Active" : "Inactive";
-    if (!isAvailable) {
-      alert(
-        "One or more ingredients exceed inventory. Item will be set to Inactive."
-      );
-    }
-    // Upload image to Supabase Storage
+    if (!isAvailable)
+      alert("One or more ingredients exceed inventory. Item will be Inactive.");
+
     let image_url = null;
     if (newItem.image) {
-      const fileExt = newItem.image.name.split(".").pop();
+      const ext = newItem.image.name.split(".").pop();
       const fileName = `${Date.now()}_${Math.random()
         .toString(36)
-        .substr(2, 8)}.${fileExt}`;
+        .slice(2, 8)}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("manu-images")
         .upload(fileName, newItem.image, {
@@ -389,7 +437,7 @@ export default function MenuBoard() {
         .getPublicUrl(fileName);
       image_url = publicUrlData.publicUrl;
     }
-    // Insert menu item
+
     const { data: menuInsert, error: menuError } = await supabase
       .from("menu-list")
       .insert([
@@ -399,50 +447,33 @@ export default function MenuBoard() {
           price: newItem.price,
           status: itemStatus,
           description: newItem.description,
-          image_url: image_url,
+          image_url,
         },
       ])
       .select();
-    if (menuError || !menuInsert || !menuInsert[0]) {
-      alert(
-        "Failed to add menu item: " +
-          (menuError?.message || "No menu item inserted")
-      );
+    if (menuError || !menuInsert?.[0]) {
+      alert("Failed to add menu item: " + (menuError?.message || "Unknown"));
       return;
     }
     const menuId = menuInsert[0].id;
-    // Insert ingredients into menu_ingredients
+
     for (const ing of newItem.ingredients) {
-      // Find ingredient_id from ingredient-list
-      const { data: ingData, error: ingError } = await supabase
+      const { data: ingData } = await supabase
         .from("ingredient-list")
         .select("id")
         .eq("name", ing.name)
         .single();
-      if (ingError || !ingData) {
-        alert(
-          `Ingredient lookup failed for '${ing.name}': ${
-            ingError?.message || "Not found"
-          }`
-        );
-        continue;
-      }
-      const { error: menuIngError } = await supabase
-        .from("menu_ingredients")
-        .insert({
-          menu_id: menuId,
-          ingredient_id: ingData.id,
-          amount: Number(ing.amount),
-          unit: ing.unit,
-          total_cost: Number(ing.total_cost),
-          created_at: new Date().toISOString(),
-        });
-      if (menuIngError) {
-        alert(
-          `Failed to insert ingredient '${ing.name}' into menu_ingredients: ${menuIngError.message}`
-        );
-      }
+      if (!ingData) continue;
+      await supabase.from("menu_ingredients").insert({
+        menu_id: menuId,
+        ingredient_id: ingData.id,
+        amount: Number(ing.amount),
+        unit: ing.unit,
+        total_cost: Number(ing.total_cost),
+        created_at: new Date().toISOString(),
+      });
     }
+
     setShowForm(false);
     setNewItem({
       item_name: "",
@@ -453,31 +484,62 @@ export default function MenuBoard() {
       image: null,
       ingredients: [],
     });
+
+    // Undefined setters kept (commented) to avoid runtime errors while preserving original intent
     // setShowIngredientForm(false);
     // setIngredientForm({ name: "", amount: "", unit: "" });
     // setEditIndex(null);
     // setIngredientErrors({});
+
+    const updateMenuItemStatus = async () => {
+      const { data: allMenuItems } = await supabase.from("menu-list").select();
+      for (const menuItem of allMenuItems || []) {
+        const { data: menuIngredients } = await supabase
+          .from("menu_ingredients")
+          .select("ingredient_id, amount")
+          .eq("menu_id", menuItem.id);
+        let available = true;
+        for (const ing of menuIngredients || []) {
+          const { data: movements } = await supabase
+            .from("stock_movement")
+            .select("type, quantity")
+            .eq("ingredient_id", ing.ingredient_id);
+          let qty = 0;
+          (movements || []).forEach((m) => {
+            qty += m.type === "in" ? m.quantity : -m.quantity;
+          });
+          if (qty < Number(ing.amount)) {
+            available = false;
+            break;
+          }
+        }
+        const newStatus = available ? "Active" : "Inactive";
+        if (menuItem.status !== newStatus) {
+          await supabase
+            .from("menu-list")
+            .update({ status: newStatus })
+            .eq("id", menuItem.id);
+        }
+      }
+    };
+    await updateMenuItemStatus();
+    setRefreshMenu((p) => !p);
   };
 
-  // edit item
   const openEditModal = (m) => {
-    // Fetch ingredients from menu_ingredients for this menu item
     const fetchIngredients = async () => {
-      const { data: ingList, error: ingError } = await supabase
+      const { data: ingList } = await supabase
         .from("menu_ingredients")
         .select(
           "ingredient_id, amount, unit, total_cost, ingredient-list(name)"
         )
         .eq("menu_id", m.id);
-      let ingredients = [];
-      if (!ingError && ingList) {
-        ingredients = ingList.map((ing) => ({
-          name: ing["ingredient-list"]?.name || "",
-          amount: ing.amount,
-          unit: ing.unit,
-          total_cost: ing.total_cost,
-        }));
-      }
+      const ingredients = (ingList || []).map((ing) => ({
+        name: ing["ingredient-list"]?.name || "",
+        amount: ing.amount,
+        unit: ing.unit,
+        total_cost: ing.total_cost,
+      }));
       setEditItem({ ...m, ingredients });
       setShowEditModal(true);
     };
@@ -487,17 +549,12 @@ export default function MenuBoard() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setEditLoading(true);
-    // Check ingredient availability
     const isAvailable = await checkIngredientsAvailability(
       editItem.ingredients
     );
     const itemStatus = isAvailable ? "Active" : "Inactive";
-    if (!isAvailable) {
-      alert(
-        "One or more ingredients exceed inventory. Item will be set to Inactive."
-      );
-    }
-    // Update menu-list
+    if (!isAvailable)
+      alert("One or more ingredients exceed inventory. Item will be Inactive.");
     const { error } = await supabase
       .from("menu-list")
       .update({
@@ -508,86 +565,145 @@ export default function MenuBoard() {
         description: editItem.description,
       })
       .eq("id", editItem.id);
-    if (error) setEditError("Failed to update item");
-    else {
-      // Remove old ingredients and insert new ones
-      await supabase
-        .from("menu_ingredients")
-        .delete()
-        .eq("menu_id", editItem.id);
-      for (const ing of editItem.ingredients) {
-        // Find ingredient_id from ingredient-list
-        const { data: ingData, error: ingError } = await supabase
-          .from("ingredient-list")
-          .select("id")
-          .eq("name", ing.name)
-          .single();
-        if (ingError || !ingData) continue;
-        await supabase.from("menu_ingredients").insert({
-          menu_id: editItem.id,
-          ingredient_id: ingData.id,
-          amount: Number(ing.amount),
-          unit: ing.unit,
-          total_cost: Number(ing.total_cost),
-          created_at: new Date().toISOString(),
-        });
-      }
-      setShowEditModal(false);
-      setRefreshMenu((prev) => !prev);
+    if (error) {
+      setEditError("Failed to update item");
+      setEditLoading(false);
+      return;
     }
+    await supabase.from("menu_ingredients").delete().eq("menu_id", editItem.id);
+    for (const ing of editItem.ingredients) {
+      const { data: ingData } = await supabase
+        .from("ingredient-list")
+        .select("id")
+        .eq("name", ing.name)
+        .single();
+      if (!ingData) continue;
+      await supabase.from("menu_ingredients").insert({
+        menu_id: editItem.id,
+        ingredient_id: ingData.id,
+        amount: Number(ing.amount),
+        unit: ing.unit,
+        total_cost: Number(ing.total_cost),
+        created_at: new Date().toISOString(),
+      });
+    }
+    setShowEditModal(false);
     setEditLoading(false);
+    setRefreshMenu((p) => !p);
   };
 
-  const displayedItems = menuItems.filter(
-    (m) =>
-      m.item_name.toLowerCase().includes(search.toLowerCase()) ||
-      m.category.toLowerCase().includes(search.toLowerCase())
+  const displayedItems = menuItems
+    .filter(
+      (m) =>
+        m.item_name.toLowerCase().includes(search.toLowerCase()) ||
+        m.category.toLowerCase().includes(search.toLowerCase())
+    )
+    // keep existing status logic; add client-side filter too to match UI
+    .filter((m) => (filter === "Status" ? true : m.status === filter))
+    // NEW: apply category filter when set
+    .filter((m) =>
+      categoryFilter === "Category" ? true : m.category === categoryFilter
+    );
+
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filter, categoryFilter]);
+
+  // Pagination calculations
+  const pageSize = 10;
+  const totalPages = Math.ceil(displayedItems.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedItems = displayedItems.slice(
+    startIndex,
+    startIndex + pageSize
   );
 
-  // Helper to get ingredients for display (handles both add and edit modals)
-  const getIngredientsForDisplay = (item) => {
-    if (!item) return [];
-    return item.ingredients || [];
-  };
+  const getIngredientsForDisplay = (item) => item?.ingredients || [];
+
   useEffect(() => {
-    if (session === null) {
-      window.location.href = "/login";
-    }
+    if (session === null) window.location.href = "/login";
   }, [session]);
 
   return (
     <div className="opswat-admin">
-      {/* Example usage: Place order for first menu item (for testing) */}
-      {/* <button onClick={() => placeOrder(menuItems[0]?.id, 1)}>Test Order (Deduct Ingredients)</button> */}
-      {/* Sidebar */}
       <AdminSidebar active="menu-management" />
-
-      {/* Main */}
       <main className="ops-main">
         <header className="ops-header">
           <h1>Menu Management</h1>
-          <button className="add-btn" onClick={() => setShowForm(true)}>
-            Add Item +
-          </button>
+          {/* moved Add button into controls row */}
         </header>
 
-        <div className="ops-controls">
-          <input
-            type="text"
-            className="search"
-            placeholder="Search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option>Status</option>
-            <option>Active</option>
-            <option>Inactive</option>
-          </select>
+        <div className="ops-controls ops-controls-row">
+          <div className="controls-left">
+            <div className="search-input-wrap">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="search-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                className="search"
+                placeholder="Search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {/* Status: Active/Inactive only */}
+            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+              <option>Status</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+
+            {/* NEW Category dropdown */}
+            <select
+              className="category-filter"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option>Category</option>
+              <option value="Sulit">Sulit</option>
+              <option value="Premium">Premium</option>
+              <option value="Add-Ons">Add-Ons</option>
+              <option value="Bundles">Bundles</option>
+              <option value="Family Bundles">Family Bundles</option>
+              <option value="Beverage">Beverage</option>
+              <option value="Limited Time Offers">Limited Time Offers</option>
+            </select>
+          </div>
+
+          <div className="controls-right">
+            <button className="add-btn" onClick={() => setShowForm(true)}>
+              + Add Item
+            </button>
+          </div>
         </div>
 
         <div className="table-wrap">
-          <table className="ops-table">
+          <table className="ops-table menu-table">
+            <colgroup>
+              {/* Wider Item Name column; scoped to this table only */}
+              <col style={{ width: "25%" }} />
+              <col style={{ width: "25%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "28%" }} />
+              <col style={{ width: "10%" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Item Name</th>
@@ -608,20 +724,34 @@ export default function MenuBoard() {
                   <td colSpan="6">No items found.</td>
                 </tr>
               ) : (
-                displayedItems.map((m) => (
+                paginatedItems.map((m) => (
                   <tr key={m.id}>
                     <td>{m.item_name}</td>
                     <td>{m.category}</td>
                     <td>{parseFloat(m.price).toFixed(2)}</td>
                     <td>
                       <span className={`status ${m.status.toLowerCase()}`}>
-                        {m.status}
+                        {m.status === "Inactive" ? "Unavailable" : m.status}
                       </span>
                     </td>
                     <td>{m.description}</td>
                     <td>
-                      <button className="edit" onClick={() => openEditModal(m)}>
-                        ✏️
+                      <button
+                        className="edit-icon-btn"
+                        onClick={() => openEditModal(m)}
+                        aria-label="Edit user"
+                        title="Edit"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                          <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.41l-2.34-2.34a1.003 1.003 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                        </svg>
                       </button>
                     </td>
                   </tr>
@@ -631,7 +761,27 @@ export default function MenuBoard() {
           </table>
         </div>
 
-        {/* Add Item Modal */}
+        {/* Pagination - bottom-right like AdminBoard */}
+        <div className="pagination-fixed">
+          <button
+            className="pagination-link"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            ◀ Prev
+          </button>
+          <span className="pagination-page">
+            {currentPage}/{totalPages}
+          </span>
+          <button
+            className="pagination-link"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => (p < totalPages ? p + 1 : p))}
+          >
+            Next ▶
+          </button>
+        </div>
+
         {showForm && (
           <div className="modal-bg">
             <div className="adduser-modal">
@@ -639,14 +789,34 @@ export default function MenuBoard() {
                 <span className="adduser-title adduser-title-lg">
                   ADD MENU ITEM
                 </span>
+                <button
+                  className="modal-close-x"
+                  onClick={() => setShowForm(false)} // FIX: was setShowForm(false)
+                  aria-label="Close modal"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="25"
+                    height="25"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#000000"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ display: "block" }}
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
               </div>
               <form className="adduser-form" onSubmit={addItem}>
                 <div
                   className="adduser-modal-row"
                   style={{ display: "flex", gap: 24 }}
                 >
-                  {/* Left: Image and Description */}
-                  <div className="adduser-modal-left" style={{ flex: 1 }}>
+                  <div className="adduser-modal-left">
                     <div
                       className="upload-box upload-box-modal"
                       onClick={() =>
@@ -655,6 +825,23 @@ export default function MenuBoard() {
                       role="button"
                       tabIndex={0}
                     >
+                      {newItem.image && (
+                        <button
+                          type="button"
+                          className="upload-remove-btn"
+                          aria-label="Remove image"
+                          title="Remove image"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const input =
+                              document.getElementById("menu-image-input");
+                            if (input) input.value = "";
+                            setNewItem((p) => ({ ...p, image: null }));
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
                       {newItem.image ? (
                         <img
                           src={URL.createObjectURL(newItem.image)}
@@ -671,8 +858,8 @@ export default function MenuBoard() {
                         className="upload-input-hidden"
                         onChange={(e) => {
                           if (e.target.files[0]) {
-                            setNewItem((prev) => ({
-                              ...prev,
+                            setNewItem((p) => ({
+                              ...p,
                               image: e.target.files[0],
                             }));
                           }
@@ -685,35 +872,54 @@ export default function MenuBoard() {
                     <textarea
                       value={newItem.description}
                       onChange={(e) =>
-                        setNewItem({ ...newItem, description: e.target.value })
+                        setNewItem((p) => ({
+                          ...p,
+                          description: e.target.value,
+                        }))
                       }
                       required
                       className="adduser-description"
                     />
+
+                    <div className="adduser-status-box">
+                      <span className="adduser-status-label">Status</span>
+                      <div
+                        className={`modal-status-toggle ${
+                          newItem.status === "Active" ? "active" : ""
+                        }`}
+                        onClick={() =>
+                          setNewItem((p) => ({
+                            ...p,
+                            status:
+                              p.status === "Active" ? "Inactive" : "Active",
+                          }))
+                        }
+                      >
+                        <div className="modal-toggle-circle"></div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Right: Fields and Ingredients */}
-                  <div className="adduser-modal-right" style={{ flex: 1.2 }}>
+                  <div className="adduser-modal-right">
                     <label>Item Name:</label>
                     <input
                       value={newItem.item_name}
                       onChange={(e) =>
-                        setNewItem({ ...newItem, item_name: e.target.value })
+                        setNewItem((p) => ({ ...p, item_name: e.target.value }))
                       }
                       required
                     />
 
-                    <div
-                      className="adduser-fields-row"
-                      style={{ display: "flex", gap: 12, marginTop: 8 }}
-                    >
-                      <div className="adduser-field-col" style={{ flex: 1 }}>
+                    <div className="adduser-field-row">
+                      <div className="adduser-field-col">
                         <label>Category</label>
                         <select
-                          name="category"
                           value={newItem.category}
                           onChange={(e) =>
-                            setNewItem({ ...newItem, category: e.target.value })
+                            setNewItem((p) => ({
+                              ...p,
+                              category: e.target.value,
+                            }))
                           }
                           required
                         >
@@ -729,33 +935,20 @@ export default function MenuBoard() {
                           </option>
                         </select>
                       </div>
-                      <div className="adduser-field-col" style={{ flex: 0.6 }}>
-                        <label>Status</label>
-                        <select
-                          value={newItem.status}
-                          onChange={(e) =>
-                            setNewItem({ ...newItem, status: e.target.value })
-                          }
-                        >
-                          <option>Active</option>
-                          <option>Inactive</option>
-                        </select>
-                      </div>
-                      <div className="adduser-field-col" style={{ flex: 0.8 }}>
+                      <div className="adduser-field-col">
                         <label>Price</label>
                         <input
                           type="number"
                           step="0.01"
                           value={newItem.price}
                           onChange={(e) =>
-                            setNewItem({ ...newItem, price: e.target.value })
+                            setNewItem((p) => ({ ...p, price: e.target.value }))
                           }
                           required
                         />
                       </div>
                     </div>
 
-                    {/* INGREDIENTS SECTION (with modal add) */}
                     <label
                       className="adduser-ingredients-label"
                       style={{ marginTop: 16 }}
@@ -768,20 +961,21 @@ export default function MenuBoard() {
                     >
                       <table
                         className="adduser-ingredients-table"
-                        style={{ width: "70%" }}
+                        style={{ width: "100%" }}
                       >
                         <thead>
                           <tr>
-                            <th className="ingredient-th-name">Name</th>
-                            <th className="ingredient-th-amount">Amount</th>
-                            <th className="ingredient-th-unit">Unit</th>
+                            <th>Name</th>
+                            <th>Amount</th>
+                            <th>Unit</th>
+                            <th>Action</th>
                           </tr>
                         </thead>
                         <tbody>
                           {getIngredientsForDisplay(newItem).length === 0 ? (
                             <tr>
                               <td
-                                colSpan="3"
+                                colSpan="4"
                                 className="adduser-ingredients-empty"
                               >
                                 No ingredients yet.
@@ -790,10 +984,7 @@ export default function MenuBoard() {
                           ) : (
                             getIngredientsForDisplay(newItem).map(
                               (ing, idx) => (
-                                <tr
-                                  key={idx}
-                                  className="adduser-ingredient-row"
-                                >
+                                <tr key={idx}>
                                   <td>{ing.name}</td>
                                   <td>{ing.amount}</td>
                                   <td>{ing.unit}</td>
@@ -801,29 +992,66 @@ export default function MenuBoard() {
                                     <div className="ingredient-action-btn-group">
                                       <button
                                         type="button"
-                                        className="adduser-ingredient-edit ingredient-action-btn"
-                                        title="Edit"
+                                        className="ingredient-action-btn icon-only adduser-ingredient-edit"
                                         onClick={() =>
                                           handleEditIngredient(idx)
                                         }
+                                        aria-label="Edit ingredient"
+                                        title="Edit ingredient"
                                       >
-                                        Edit
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          width="27"
+                                          height="27"
+                                          viewBox="0 0 24 24"
+                                          aria-hidden="true"
+                                        >
+                                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                                          <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.41l-2.34-2.34a1.003 1.003 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                                        </svg>
                                       </button>
                                       <button
                                         type="button"
-                                        className="adduser-ingredient-delete ingredient-action-btn"
-                                        title="Delete"
-                                        onClick={() => {
-                                          setNewItem((prev) => ({
-                                            ...prev,
-                                            ingredients:
-                                              prev.ingredients.filter(
-                                                (_, i) => i !== idx
-                                              ),
-                                          }));
-                                        }}
+                                        className="ingredient-action-btn icon-only adduser-ingredient-delete"
+                                        onClick={() =>
+                                          setNewItem((p) => ({
+                                            ...p,
+                                            ingredients: p.ingredients.filter(
+                                              (_, i) => i !== idx
+                                            ),
+                                          }))
+                                        }
+                                        aria-label="Delete ingredient"
+                                        title="Delete ingredient"
                                       >
-                                        Delete
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          width="27"
+                                          height="27"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="#e53935"
+                                          strokeWidth="3.2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          aria-hidden="true"
+                                        >
+                                          <polyline points="3 6 5 6 21 6"></polyline>
+                                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                                          <line
+                                            x1="10"
+                                            y1="11"
+                                            x2="10"
+                                            y2="17"
+                                          ></line>
+                                          <line
+                                            x1="14"
+                                            y1="11"
+                                            x2="14"
+                                            y2="17"
+                                          ></line>
+                                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                                        </svg>
                                       </button>
                                     </div>
                                   </td>
@@ -839,20 +1067,38 @@ export default function MenuBoard() {
                           justifyContent: "center",
                           marginTop: 8,
                         }}
-                      >
-                        <button
-                          type="button"
-                          className="add-ingredient-btn"
-                          onClick={handleAddIngredient}
-                        >
-                          +
-                        </button>
-                      </div>
+                      ></div>
                     </div>
-                    {/* Add Ingredient Modal */}
+
                     {showIngredientModal && (
-                      <div className="addmenu-overlay">
-                        <div className="addingredient-modal">
+                      <div className="modal-bg">
+                        <div className="adminboard-modal">
+                          <button
+                            type="button"
+                            className="modal-close-x"
+                            aria-label="Close modal"
+                            onClick={() => {
+                              setShowIngredientModal(false);
+                              setIngredientError("");
+                            }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="25"
+                              height="25"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#000000"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{ display: "block" }}
+                            >
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                          <span className="adduser-title">ADD INGREDIENT</span>
                           <div className="ingredient-form">
                             <div className="ingredient-row">
                               <label>Name</label>
@@ -878,10 +1124,9 @@ export default function MenuBoard() {
                               <input
                                 type="number"
                                 value={ingredientAmount}
-                                onChange={(e) => {
-                                  setIngredientAmount(e.target.value);
-                                }}
-                                placeholder=""
+                                onChange={(e) =>
+                                  setIngredientAmount(e.target.value)
+                                }
                               />
                             </div>
                             <div className="ingredient-row">
@@ -893,6 +1138,9 @@ export default function MenuBoard() {
                                 }
                               >
                                 <option value="">Select</option>
+                                <option value="pcs">pcs</option>
+                                <option value="kg">kg</option>
+                                <option value="g">g</option>
                                 {(() => {
                                   let code = null;
                                   for (const group of Object.values(
@@ -910,28 +1158,26 @@ export default function MenuBoard() {
                                     code && unitOptions[code]
                                       ? unitOptions[code]
                                       : [];
-                                  return units.map((unit) => (
-                                    <option key={unit} value={unit}>
-                                      {unit}
+                                  return units.map((u) => (
+                                    <option key={u} value={u}>
+                                      {u}
                                     </option>
                                   ));
                                 })()}
                               </select>
                             </div>
-                            <div className="modal-actions">
+                            {ingredientError && (
+                              <p style={{ color: "red", fontSize: "0.8rem" }}>
+                                {ingredientError}
+                              </p>
+                            )}
+                            <div className="single-confirm-wrap">
                               <button
                                 type="button"
-                                className="btn-confirm"
+                                className="btn-confirm full-width-confirm"
                                 onClick={handleConfirmIngredient}
                               >
-                                Add
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-cancel"
-                                onClick={handleCancelIngredient}
-                              >
-                                Cancel
+                                Add Ingredient
                               </button>
                             </div>
                           </div>
@@ -941,16 +1187,33 @@ export default function MenuBoard() {
                   </div>
                 </div>
 
-                <div className="modal-actions adduser-actions">
-                  <button type="submit" className="btn-confirm">
-                    Confirm
-                  </button>
+                <div className="adduser-actions">
                   <button
                     type="button"
-                    className="btn-cancel"
-                    onClick={() => setShowForm(false)}
+                    className="add-ingredient-btn"
+                    onClick={handleAddIngredient}
+                    aria-label="Add ingredient"
+                    title="Add ingredient"
                   >
-                    Cancel
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#000"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    <span>Add</span>
+                  </button>
+                  <button type="submit" className="btn-add-menu-item">
+                    Add Menu Item
                   </button>
                 </div>
               </form>
@@ -958,7 +1221,6 @@ export default function MenuBoard() {
           </div>
         )}
 
-        {/* Edit Item Modal (matches Add Menu Item UI and logic) */}
         {showEditModal && editItem && (
           <div className="modal-bg">
             <div className="adduser-modal">
@@ -966,14 +1228,31 @@ export default function MenuBoard() {
                 <span className="adduser-title adduser-title-lg">
                   EDIT MENU ITEM
                 </span>
+                <button
+                  className="modal-close-x"
+                  onClick={() => setShowEditModal(false)}
+                  aria-label="Close modal"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="25"
+                    height="25"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#000000"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ display: "block" }}
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
               </div>
               <form className="adduser-form" onSubmit={handleEditSubmit}>
-                <div
-                  className="adduser-modal-row"
-                  style={{ display: "flex", gap: 24 }}
-                >
-                  {/* Left: Image and Description */}
-                  <div className="adduser-modal-left" style={{ flex: 1 }}>
+                <div className="adduser-modal-row">
+                  <div className="adduser-modal-left">
                     <div
                       className="upload-box upload-box-modal"
                       style={{ pointerEvents: "none", opacity: 0.7 }}
@@ -984,49 +1263,64 @@ export default function MenuBoard() {
                         <div className="upload-box-label">No Image</div>
                       )}
                     </div>
-                    <label>Description:</label>
+
+                    <label>Description</label>
                     <textarea
                       value={editItem.description}
                       onChange={(e) =>
-                        setEditItem({
-                          ...editItem,
+                        setEditItem((p) => ({
+                          ...p,
                           description: e.target.value,
-                        })
+                        }))
                       }
                       required
                       className="adduser-description"
                     />
+
+                    <div className="adduser-status-box">
+                      <span className="adduser-status-label">Status</span>
+                      <div
+                        className={`modal-status-toggle ${
+                          editItem.status === "Active" ? "active" : ""
+                        }`} // FIX: use Active/Inactive
+                        onClick={() =>
+                          setEditItem((p) => ({
+                            ...p,
+                            status:
+                              p.status === "Active" ? "Inactive" : "Active",
+                          }))
+                        }
+                      >
+                        <div className="modal-toggle-circle"></div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Right: Fields and Ingredients */}
-                  <div className="adduser-modal-right" style={{ flex: 1.2 }}>
-                    <label>Item Name:</label>
+                  <div className="adduser-modal-right">
+                    <label>Item Name</label>
                     <input
                       value={editItem.item_name}
                       readOnly
                       style={{ backgroundColor: "#fdfae7", color: "#333" }}
                     />
 
-                    <div
-                      className="adduser-fields-row"
-                      style={{ display: "flex", gap: 12, marginTop: 8 }}
-                    >
-                      <div className="adduser-field-col" style={{ flex: 1 }}>
+                    <div className="adduser-field-row">
+                      <div className="adduser-field-col">
                         <label>Category</label>
                         <select
-                          name="category"
                           value={editItem.category}
                           onChange={(e) =>
-                            setEditItem({
-                              ...editItem,
+                            setEditItem((p) => ({
+                              ...p,
                               category: e.target.value,
-                            })
+                            }))
                           }
                           required
                         >
                           <option value="">Select Category</option>
                           <option value="Sulit">Sulit</option>
-                          <option value="Premium">Premium</option>
+                          <option value="Premium">Premium</option>{" "}
+                          {/* FIX: removed stray 's' */}
                           <option value="Add-Ons">Add-Ons</option>
                           <option value="Bundles">Bundles</option>
                           <option value="Family Bundles">Family Bundles</option>
@@ -1036,38 +1330,28 @@ export default function MenuBoard() {
                           </option>
                         </select>
                       </div>
-                      <div className="adduser-field-col" style={{ flex: 0.6 }}>
-                        <label>Status</label>
-                        <select
-                          value={editItem.status}
-                          onChange={(e) =>
-                            setEditItem({ ...editItem, status: e.target.value })
-                          }
-                        >
-                          <option>Active</option>
-                          <option>Inactive</option>
-                        </select>
-                      </div>
-                      <div className="adduser-field-col" style={{ flex: 0.8 }}>
+                      <div className="adduser-field-col">
                         <label>Price</label>
                         <input
                           type="number"
                           step="0.01"
                           value={editItem.price}
                           onChange={(e) =>
-                            setEditItem({ ...editItem, price: e.target.value })
+                            setEditItem((p) => ({
+                              ...p,
+                              price: e.target.value,
+                            }))
                           }
                           required
                         />
                       </div>
                     </div>
 
-                    {/* INGREDIENTS SECTION (with modal add) */}
                     <label
                       className="adduser-ingredients-label"
                       style={{ marginTop: 16 }}
                     >
-                      Ingredients:
+                      Ingredients
                     </label>
                     <div
                       className="adduser-ingredients-box"
@@ -1075,13 +1359,13 @@ export default function MenuBoard() {
                     >
                       <table
                         className="adduser-ingredients-table"
-                        style={{ width: "105%" }}
+                        style={{ width: "100%" }}
                       >
                         <thead>
                           <tr>
-                            <th className="ingredient-th-name">Name</th>
-                            <th className="ingredient-th-amount">Amount</th>
-                            <th className="ingredient-th-unit">Unit</th>
+                            <th>Name</th>
+                            <th>Amount</th>
+                            <th>Unit</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1097,10 +1381,7 @@ export default function MenuBoard() {
                           ) : (
                             getIngredientsForDisplay(editItem).map(
                               (ing, idx) => (
-                                <tr
-                                  key={idx}
-                                  className="adduser-ingredient-row"
-                                >
+                                <tr key={idx}>
                                   <td>{ing.name}</td>
                                   <td>{ing.amount}</td>
                                   <td>{ing.unit}</td>
@@ -1110,12 +1391,38 @@ export default function MenuBoard() {
                           )}
                         </tbody>
                       </table>
-                      {/* Removed add ingredient button in Edit Menu Item modal */}
                     </div>
-                    {/* Add/Edit Ingredient Modal for Edit Modal */}
+
                     {showEditIngredientForm && (
-                      <div className="addmenu-overlay">
-                        <div className="addingredient-modal">
+                      <div className="modal-bg">
+                        <div className="adminboard-modal">
+                          <button
+                            type="button"
+                            className="modal-close-x"
+                            aria-label="Close modal"
+                            onClick={handleCancelEditIngredient}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="25"
+                              height="25"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#000000"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{ display: "block" }}
+                            >
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                          <span className="adduser-title">
+                            {editIngredientIndex !== null
+                              ? "EDIT INGREDIENT"
+                              : "ADD INGREDIENT"}
+                          </span>
                           <form
                             className="ingredient-form"
                             onSubmit={handleEditIngredientFormSubmit}
@@ -1142,7 +1449,6 @@ export default function MenuBoard() {
                                 type="number"
                                 value={editIngredientForm.amount}
                                 onChange={handleEditModalIngredientChange}
-                                placeholder=""
                               />
                             </div>
                             {editIngredientError && (
@@ -1175,28 +1481,23 @@ export default function MenuBoard() {
                                     code && unitOptions[code]
                                       ? unitOptions[code]
                                       : [];
-                                  return units.map((unit) => (
-                                    <option key={unit} value={unit}>
-                                      {unit}
+                                  return units.map((u) => (
+                                    <option key={u} value={u}>
+                                      {u}
                                     </option>
                                   ));
                                 })()}
                               </select>
                             </div>
-                            <div className="modal-actions">
-                              <button
-                                type="button"
-                                className="btn-cancel"
-                                onClick={handleCancelEditIngredient}
-                              >
-                                Cancel
-                              </button>
+                            <div className="single-confirm-wrap">
                               <button
                                 type="submit"
-                                className="btn-confirm"
+                                className="btn-confirm full-width-confirm"
                                 disabled={!!editIngredientError}
                               >
-                                {editIngredientIndex !== null ? "Save" : "Add"}
+                                {editIngredientIndex !== null
+                                  ? "Save Changes"
+                                  : "Add Ingredient"}
                               </button>
                             </div>
                           </form>
@@ -1206,20 +1507,13 @@ export default function MenuBoard() {
                   </div>
                 </div>
 
-                <div className="modal-actions adduser-actions">
+                <div className="adduser-actions">
                   <button
                     type="submit"
-                    className="btn-confirm"
+                    className="btn-add-menu-item"
                     disabled={editLoading}
                   >
-                    Confirm
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-cancel"
-                    onClick={() => setShowEditModal(false)}
-                  >
-                    Cancel
+                    Save Changes
                   </button>
                 </div>
                 {editError && <p className="error">{editError}</p>}

@@ -8,7 +8,6 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -17,89 +16,73 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
 import React, { useState, useEffect, useRef } from "react";
-// import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { UserAuth } from "../authenticator/AuthContext";
 import "./SalesReport.css";
-import AdminSidebar from "./AdminSidebar";
+import AdminSidebar from "./AdminSidebar"; // NEW
 
-// Helper to format dates
 function formatDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
 export default function SalesReport() {
-  const { session } = UserAuth();
-  // sidebar state handled by shared AdminSidebar
+  const { session } = UserAuth(); // Removed signOut (handled in AdminSidebar)
 
-  // Date range state
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(1); // first day of the month
+    d.setDate(1);
     return formatDate(d);
   });
   const [endDate, setEndDate] = useState(() => formatDate(new Date()));
 
-  // Orders, best sellers, menu list, and total sales
   const [orders, setOrders] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
-  const [, setMenuList] = useState([]);
   const [menuIngredientCosts, setMenuIngredientCosts] = useState({});
   const [loading, setLoading] = useState(false);
   const [totalSales, setTotalSales] = useState(0);
-
-  // Active tab: 'sales' or 'summary'
   const [tab, setTab] = useState("sales");
-  // Refs for PDF export
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const salesRef = useRef(null);
   const summaryRef = useRef(null);
 
   useEffect(() => {
-    if (session === null) {
-      window.location.href = "/login";
-    }
+    if (session === null) window.location.href = "/login";
   }, [session]);
 
-  // Fetch orders and total sales whenever date range changes
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Fetch all orders
         const { data: ordersData } = await supabase
           .from("orders")
           .select("id, total_price");
         setOrders(ordersData || []);
-        // Fetch menu-list
+
         const { data: menuListData } = await supabase
           .from("menu-list")
           .select("id, item_name, price");
-        setMenuList(menuListData || []);
-        // Build menu cost map from menu_ingredients
+
         const costMap = {};
         for (const menu of menuListData || []) {
           const { data: menuIngredients } = await supabase
             .from("menu_ingredients")
             .select("total_cost")
             .eq("menu_id", menu.id);
-          let totalCost = 0;
-          if (menuIngredients) {
-            totalCost = menuIngredients.reduce(
-              (sum, ing) => sum + (parseFloat(ing.total_cost) || 0),
-              0
-            );
-          }
-          costMap[menu.item_name] = totalCost;
+          costMap[menu.item_name] = (menuIngredients || []).reduce(
+            (sum, ing) => sum + (parseFloat(ing.total_cost) || 0),
+            0
+          );
         }
         setMenuIngredientCosts(costMap);
 
-        // Fetch all order_items for the orders
-        const orderIds = (ordersData || []).map((order) => order.id);
+        const orderIds = (ordersData || []).map((o) => o.id);
         let orderItemsData = [];
-        if (orderIds.length > 0) {
+        if (orderIds.length) {
           const { data: orderItems } = await supabase
             .from("order_items")
             .select("id, order_id, menu_item_id, quantity, price")
@@ -107,45 +90,39 @@ export default function SalesReport() {
           orderItemsData = orderItems || [];
         }
 
-        // Build lookup maps for menu-list
         const menuIdToName = {};
         const menuIdToPrice = {};
-        (menuListData || []).forEach((menu) => {
-          menuIdToName[menu.id] = menu.item_name;
-          menuIdToPrice[menu.id] = parseFloat(menu.price) || 0;
+        (menuListData || []).forEach((m) => {
+          menuIdToName[m.id] = m.item_name;
+          menuIdToPrice[m.id] = parseFloat(m.price) || 0;
         });
 
-        // Count products and revenue
         const productCount = {};
         const productRevenue = {};
         for (const item of orderItemsData) {
-          const menuId = item.menu_item_id;
-          const itemName = menuIdToName[menuId] || `Unknown (${menuId})`;
-          const price = menuIdToPrice[menuId] || 0;
-          const quantity = item.quantity || 1;
-          productCount[itemName] = (productCount[itemName] || 0) + quantity;
-          productRevenue[itemName] =
-            (productRevenue[itemName] || 0) + price * quantity;
+          const name =
+            menuIdToName[item.menu_item_id] || `Unknown (${item.menu_item_id})`;
+          const qty = item.quantity || 1;
+          const price = menuIdToPrice[item.menu_item_id] || 0;
+          productCount[name] = (productCount[name] || 0) + qty;
+          productRevenue[name] = (productRevenue[name] || 0) + price * qty;
         }
 
-        // Add-ons (optional)
         const addOnRevenue = {};
         for (const item of orderItemsData) {
           const { data: addOns } = await supabase
             .from("order_item_add_ons")
             .select("name, price")
             .eq("order_item_id", item.id);
-          if (addOns) {
-            for (const addOn of addOns) {
-              addOnRevenue[addOn.name] =
-                (addOnRevenue[addOn.name] || 0) + parseFloat(addOn.price || 0);
-            }
-          }
+          (addOns || []).forEach((a) => {
+            addOnRevenue[a.name] =
+              (addOnRevenue[a.name] || 0) + parseFloat(a.price || 0);
+          });
         }
 
-        // Combine products and add-ons
         const allProducts = { ...productCount, ...addOnRevenue };
         const allRevenue = { ...productRevenue, ...addOnRevenue };
+
         const sorted = Object.entries(allProducts)
           .map(([name]) => ({
             name,
@@ -154,21 +131,15 @@ export default function SalesReport() {
             isAddOn: !!addOnRevenue[name],
           }))
           .sort((a, b) => b.revenue - a.revenue);
-
         setBestSellers(sorted);
-        console.log("Best sellers computed:", sorted);
 
-        // Calculate total sales
-        let totalSalesValue = 0;
-        if (ordersData && ordersData.length > 0) {
-          totalSalesValue = ordersData.reduce(
-            (acc, order) => acc + (parseFloat(order.total_price) || 0),
-            0
-          );
-        }
+        const totalSalesValue = (ordersData || []).reduce(
+          (acc, o) => acc + (parseFloat(o.total_price) || 0),
+          0
+        );
         setTotalSales(totalSalesValue);
-      } catch (error) {
-        console.error("Error in fetchData for SalesReport:", error);
+      } catch (err) {
+        console.error("SalesReport fetch error:", err);
       } finally {
         setLoading(false);
       }
@@ -176,32 +147,19 @@ export default function SalesReport() {
     fetchData();
   }, []);
 
-  // Calculate summary values
-  // Calculate summary values
-  const totalOrders = orders && orders.length ? orders.length : 0;
-  // Total items sold: sum of all counts from bestSellers
+  const totalOrders = orders.length;
   const totalItemsSold = bestSellers.reduce((acc, item) => acc + item.count, 0);
+  const totalProfit = bestSellers.reduce((acc, item) => {
+    if (item.isAddOn) return acc;
+    const unitCost = menuIngredientCosts[item.name] || 0;
+    return acc + (item.revenue - unitCost * item.count);
+  }, 0);
 
-  // Calculate total profit from best sellers
-  // Total profit: sum of (revenue - cost) for each menu item (exclude add-ons)
-  const totalProfit =
-    bestSellers && bestSellers.length > 0
-      ? bestSellers.reduce((acc, item) => {
-          if (!item.isAddOn) {
-            const unitCost = menuIngredientCosts[item.name] || 0;
-            return acc + (item.revenue - unitCost * item.count);
-          }
-          return acc;
-        }, 0)
-      : 0;
-
-  // Export data as PDF
   const handleExport = async () => {
-    let exportRef = tab === "sales" ? salesRef : summaryRef;
-    const element = exportRef.current;
-    if (!element) return;
+    const ref = tab === "sales" ? salesRef : summaryRef;
+    if (!ref.current) return;
     try {
-      const canvas = await html2canvas(element, { scale: 2 });
+      const canvas = await html2canvas(ref.current, { scale: 2 });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -209,7 +167,6 @@ export default function SalesReport() {
         format: "a4",
       });
       const pageWidth = pdf.internal.pageSize.getWidth();
-      // Calculate image dimensions to fit A4
       const imgWidth = pageWidth - 40;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       pdf.addImage(imgData, "PNG", 20, 20, imgWidth, imgHeight);
@@ -221,64 +178,70 @@ export default function SalesReport() {
 
   return (
     <div className="opswat-admin">
-      {/* Sidebar */}
-      <AdminSidebar active="sales-report" />
-
-      {/* Main Content */}
+      <AdminSidebar active="sales-report" /> {/* NEW unified sidebar */}
       <main className="ops-main">
-        {/* Header: title, date range, tabs, export */}
-        <header className="ops-header salesreport-header-row">
-          <h1>Sales Report</h1>
-
-          <div className="salesreport-date-range-picker">
-            <input
-              className="date-picker"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              max={endDate}
-            />
-            <span className="salesreport-date-arrow">→</span>
-            <input
-              className="date-picker"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              min={startDate}
-              max={formatDate(new Date())}
-            />
-          </div>
-
-          <div className="salesreport-tab-btn-row">
+        <header className="ops-header salesreport-header">
+          <h1 className="salesreport-title">Sales Report</h1>
+          <div className="salesreport-controls-top">
+            <div className="salesreport-right-controls">
+              <button
+                type="button"
+                className="salesreport-date-single"
+                onClick={() => setShowDatePicker((v) => !v)}
+                aria-label="Change date range"
+                title="Change date range"
+              >
+                {startDate} – {endDate}
+              </button>
+              {showDatePicker && (
+                <div className="salesreport-date-popover">
+                  <input
+                    className="date-picker"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    max={endDate}
+                  />
+                  <span className="salesreport-date-arrow">→</span>
+                  <input
+                    className="date-picker"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={startDate}
+                    max={formatDate(new Date())}
+                  />
+                </div>
+              )}
+            </div>
             <button
-              className={`salesreport-tab-btn${
-                tab === "sales" ? " active" : ""
-              }`}
-              onClick={() => setTab("sales")}
+              className="salesreport-export-btn"
+              onClick={handleExport}
+              aria-label="Export"
             >
-              Sales
-            </button>
-            <button
-              className={`salesreport-tab-btn${
-                tab === "summary" ? " active" : ""
-              }`}
-              onClick={() => setTab("summary")}
-            >
-              Table Summary
-            </button>
-            <button className="salesreport-export-btn" onClick={handleExport}>
-              <span role="img" aria-label="Export">
-                📤
-              </span>{" "}
-              Export
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#111"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="icon-download"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span>Export</span>
             </button>
           </div>
         </header>
 
-        {/* Tab Content */}
         {tab === "sales" ? (
           <div ref={salesRef} className="salesreport-row-flex">
-            {/* Metrics Column */}
             <div className="salesreport-metrics-col">
               <div className="salesreport-metric-card">
                 <div className="metric-label">Current Total Revenue</div>
@@ -300,7 +263,6 @@ export default function SalesReport() {
                   })}
                 </div>
               </div>
-
               <table className="summary-table summary-table-margin">
                 <thead>
                   <tr>
@@ -311,10 +273,13 @@ export default function SalesReport() {
                 <tbody>
                   <tr>
                     <td>Total Sales</td>
-                    <td>{`₱${totalSales.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}`}</td>
+                    <td>
+                      ₱
+                      {totalSales.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
                   </tr>
                   <tr>
                     <td>Total Orders</td>
@@ -327,8 +292,6 @@ export default function SalesReport() {
                 </tbody>
               </table>
             </div>
-
-            {/* Chart Column */}
             <div className="salesreport-chart-container salesreport-chart-container-margin">
               {loading ? (
                 <div>Loading chart...</div>
@@ -342,11 +305,11 @@ export default function SalesReport() {
                   <div className="salesreport-bar-chart-area-responsive">
                     <Bar
                       data={{
-                        labels: bestSellers.map((item) => item.name),
+                        labels: bestSellers.map((i) => i.name),
                         datasets: [
                           {
                             label: "Sold",
-                            data: bestSellers.map((item) => item.count),
+                            data: bestSellers.map((i) => i.count),
                             backgroundColor: "#ff9800",
                             borderRadius: 8,
                             maxBarThickness: 60,
@@ -358,7 +321,6 @@ export default function SalesReport() {
                         maintainAspectRatio: false,
                         plugins: {
                           legend: { display: false },
-                          title: { display: false },
                           tooltip: { enabled: true },
                         },
                         layout: { padding: 16 },
@@ -399,7 +361,7 @@ export default function SalesReport() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bestSellers.length === 0 ? (
+                  {bestSellers.filter((i) => !i.isAddOn).length === 0 ? (
                     <tr>
                       <td colSpan="7" style={{ textAlign: "center" }}>
                         No sales data available for the selected date range.
@@ -407,22 +369,19 @@ export default function SalesReport() {
                     </tr>
                   ) : (
                     bestSellers
-                      .filter((item) => !item.isAddOn)
+                      .filter((i) => !i.isAddOn)
                       .map((item, idx) => {
-                        // Calculate average unit price from actual orders data
                         const unitPrice =
                           item.count > 0 ? item.revenue / item.count : 0;
-                        const totalSales = item.revenue;
                         const unitCost = menuIngredientCosts[item.name] || 0;
-                        const profit = totalSales - unitCost * item.count;
-
+                        const profit = item.revenue - unitCost * item.count;
                         return (
                           <tr key={item.name}>
                             <td>{idx + 1}</td>
                             <td>{item.name}</td>
                             <td>{item.count}</td>
                             <td>₱{unitPrice.toFixed(2)}</td>
-                            <td>₱{totalSales.toFixed(2)}</td>
+                            <td>₱{item.revenue.toFixed(2)}</td>
                             <td>₱{unitCost.toFixed(2)}</td>
                             <td>₱{profit.toFixed(2)}</td>
                           </tr>
@@ -430,18 +389,18 @@ export default function SalesReport() {
                       })
                   )}
                 </tbody>
-                {bestSellers.length > 0 && (
+                {bestSellers.filter((i) => !i.isAddOn).length > 0 && (
                   <tfoot>
                     <tr className="salesreport-summary-total-row">
                       <td colSpan="2">TOTAL</td>
                       <td>
-                        {bestSellers.reduce((acc, item) => acc + item.count, 0)}
+                        {bestSellers.reduce((acc, i) => acc + i.count, 0)}
                       </td>
                       <td>-</td>
                       <td>
                         ₱
                         {bestSellers
-                          .reduce((acc, item) => acc + item.revenue, 0)
+                          .reduce((acc, i) => acc + i.revenue, 0)
                           .toFixed(2)}
                       </td>
                       <td>-</td>
@@ -453,6 +412,54 @@ export default function SalesReport() {
             </div>
           </div>
         )}
+        <div className="salesreport-bottom-spacer"></div>
+        {/* Bottom navigation arrows (fixed) */}
+        <div className="salesreport-bottom-nav">
+          <button
+            className="salesreport-nav-btn"
+            disabled={tab === "sales"}
+            onClick={() => setTab("sales")}
+            aria-label="Go to Sales Report"
+            title="Go to Sales Report"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>Sales Report</span>
+          </button>
+          <button
+            className="salesreport-nav-btn"
+            disabled={tab === "summary"}
+            onClick={() => setTab("summary")}
+            aria-label="Go to Table Summary"
+            title="Go to Table Summary"
+          >
+            <span>Table Summary</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
       </main>
     </div>
   );

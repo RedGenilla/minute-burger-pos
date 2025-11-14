@@ -109,6 +109,7 @@
 .ops-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed; /* ensure column widths are respected */
 }
 .ops-table th,
 .ops-table td {
@@ -117,6 +118,37 @@
   border-bottom: 1px solid #e5e7eb;
   font-size: 0.9rem;
   color: #000;
+  box-sizing: border-box;
+}
+.ops-table th:nth-child(1),
+.ops-table td:nth-child(1) {
+  width: 60px !important; /* Category */
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.ops-table th:nth-child(2),
+.ops-table td:nth-child(2) {
+  width: 70px !important; /* Item Code */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.ops-table th:nth-child(5),
+.ops-table td:nth-child(5) {
+  width: 80px; /* Quantity - smaller */
+}
+
+.ops-table th:nth-child(6),
+.ops-table td:nth-child(6) {
+  width: 80px; /* Cost - smaller */
+}
+
+.ops-table th:nth-child(7),
+.ops-table td:nth-child(7) {
+  width: 80px; /* Status - smaller */
 }
 .ops-table tr:hover {
   background: #ffb02e;
@@ -195,7 +227,7 @@
   display: block;
   font-weight: 600;
   text-align: left;
-  margin: 14px 0 6px;
+  margin: 8px 0 4px; /* tighter spacing */
 }
 .adduser-form input,
 .adduser-form select {
@@ -206,8 +238,8 @@
   border-radius: 8px;
   font-size: 0.95rem;
   outline: none;
-  margin-top: 4px;
-  margin-bottom: 11px;
+  margin-top: 2px;
+  margin-bottom: 8px; /* tighter spacing */
   background-color: #fff !important;
 }
 .adduser-actions {
@@ -883,7 +915,7 @@ body {
 .ingredients-form-row {
   display: flex;
   flex-direction: row;
-  gap: 32px;
+  gap: 16px; /* closer fields */
   justify-content: center;
   align-items: flex-start;
 }
@@ -906,7 +938,7 @@ body {
   border: 1px solid #ccc;
   font-size: 1rem;
   outline: none;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .ops-table th.quantity,
 .ops-table td.quantity {
@@ -915,4 +947,114 @@ body {
 .ingredients-table th.quantity,
 .ingredients-table td.quantity {
   text-align: center !important;
+}
+
+/* Unified controls row (AdminBoard style) */
+.ops-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-input-wrap .search {
+  padding-left: 30px;
+}
+.search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #555;
+}
+.status-filter,
+.category-filter,
+.search-input-wrap .search {
+  padding: 6px 10px;
+  border: 1px solid #bcbcbc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+.gray-btn {
+  background: #ffffff !important;
+  color: #333 !important;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 7px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #bcbcbc;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.gray-btn:hover {
+  background: #cfcfcf !important;
+}
+
+/* AdminBoard modal styling for Inventory */
+.adminboard-modal {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 12px 22px 12px;
+  width: 360px;
+  max-width: 95vw;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+.modal-close-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.single-confirm-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+.full-width-confirm {
+  width: 90%;
+}
+.two-col-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.stock-in svg,
+.stock-out svg {
+  /* make the entire SVG have a stroke box around all content */
+  position: relative;
+}
+
+.stock-in svg rect.bounding-box,
+.stock-out svg rect.bounding-box {
+  fill: none; /* transparent fill */
+  stroke: #000; /* stroke color for the container */
+  stroke-width: 2; /* thickness of the stroke */
+  rx: 4; /* optional rounded corners */
+  ry: 4;
+  border-radius: 10px;
 }

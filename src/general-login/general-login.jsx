@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import "./general-login.css";
 import minuteLogo from "../assets/minute-burger.png";
+import burger2Icon from "../assets/burger2-icon.png";
 import { UserAuth } from "../authenticator/AuthContext";
 
 const GeneralLogin = () => {
@@ -86,11 +87,13 @@ const GeneralLogin = () => {
   return (
     <div className="general-bg">
       <div className="general-poster">
-        {/* Header Logo and Title */}
+        {/* Header Logo Only */}
         <div className="general-header">
-          <span>MINUTE</span>
-          <img src={minuteLogo} alt="Minute Burger Logo" />
-          <span>BURGER</span>
+          <img
+            src={minuteLogo}
+            alt="Minute Burger Logo"
+            className="general-header-logo"
+          />
         </div>
 
         {/* Login Container */}
@@ -150,7 +153,7 @@ const GeneralLogin = () => {
         <div className="general-footer">
           <hr />
           <img
-            src={minuteLogo}
+            src={burger2Icon}
             alt="Minute Burger Footer Logo"
             className="footer-logo"
           />
