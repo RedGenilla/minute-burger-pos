@@ -863,23 +863,28 @@ export default function IngredientsDashboard() {
                     <td>{item.quantity}</td>
                     <td>₱{item.cost}</td>
                     <td>
-                      <span className={`status ${item.status.toLowerCase()}`}>
-                        {item.status}
-                      </span>
-                      {item.lowStock && (
-                        <span
-                          style={{
-                            background: "red",
-                            color: "white",
-                            borderRadius: "6px",
-                            padding: "2px 8px",
-                            marginLeft: "8px",
-                            fontSize: "0.8em",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          Low Stock
+                      <div>
+                        <span className={`status ${item.status.toLowerCase()}`}>
+                          {item.status}
                         </span>
+                      </div>
+                      {item.lowStock && (
+                        <div style={{ marginTop: 6 }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              background: "red",
+                              color: "white",
+                              borderRadius: "2px",
+                              padding: "2px 5px",
+                              fontSize: "0.75em",
+                              fontWeight: "bold",
+                              letterSpacing: "0.5px",
+                            }}
+                          >
+                            Low Stock
+                          </span>
+                        </div>
                       )}
                     </td>
                     <td>
@@ -1011,82 +1016,7 @@ export default function IngredientsDashboard() {
                       </button>
                       {/* duplicate img-based icons removed; inline SVG buttons above used instead */}
                     </td>
-                    {/* Stock In/Out Modal */}
-                    {showStockModal && stockItem && (
-                      <div className="modal-bg">
-                        <div className="ingredients-modal">
-                          <div className="adduser-header-bar">
-                            <span className="adduser-title">
-                              {stockType === "in" ? "STOCK IN" : "STOCK OUT"} -{" "}
-                              {stockItem.name}
-                            </span>
-                          </div>
-                          <form
-                            className="adduser-form"
-                            onSubmit={handleStockSubmit}
-                          >
-                            <div className="ingredients-form-row">
-                              <div className="ingredients-form-col">
-                                <label>Date:</label>
-                                <input
-                                  name="date"
-                                  type="date"
-                                  value={stockValues.date}
-                                  onChange={handleStockChange}
-                                  required
-                                />
-                                <label>Quantity:</label>
-                                <input
-                                  name="quantity"
-                                  type="number"
-                                  value={stockValues.quantity}
-                                  onChange={handleStockChange}
-                                  required
-                                  min="1"
-                                />
-                                {stockType === "in" && (
-                                  <>
-                                    <label>Cost:</label>
-                                    <input
-                                      name="cost"
-                                      type="number"
-                                      value={stockValues.cost}
-                                      onChange={handleStockChange}
-                                      required
-                                      min="0"
-                                    />
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            {stockError && (
-                              <div
-                                style={{ color: "red", marginBottom: "8px" }}
-                              >
-                                {stockError}
-                              </div>
-                            )}
-                            <div className="modal-actions adduser-actions">
-                              <button
-                                type="submit"
-                                className="btn-confirm"
-                                disabled={loading}
-                              >
-                                {loading ? "Saving..." : "Confirm"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-cancel"
-                                onClick={() => setShowStockModal(false)}
-                                disabled={loading}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      </div>
-                    )}
+                    {/* Duplicate per-row stock modal removed; single global modal retained below */}
                   </tr>
                 ))
               )}

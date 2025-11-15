@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserAuth } from "../authenticator/AuthContext";
 import logoImg from "../assets/burger2-icon.png";
@@ -7,6 +7,7 @@ import menuIcon from "../assets/menu.png";
 import inventoryIcon from "../assets/inventory.png";
 import salesIcon from "../assets/sales.png";
 import logoutIcon from "../assets/logout.png";
+import { supabase } from "../supabaseClient";
 import "./AdminSidebar.css";
 
 /**
@@ -14,10 +15,11 @@ import "./AdminSidebar.css";
  * Props:
  *   active (string) -> one of: 'user-management', 'menu-management', 'inventory', 'sales-report'
  */
-export default function AdminSidebar({ active, lowStockCount = 0 }) {
+export default function AdminSidebar({ active }) {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [lowStockCount, setLowStockCount] = useState(0);
 
   const handleLogoutClick = () => setShowLogoutConfirm(true);
   const handleCancelLogout = () => setShowLogoutConfirm(false);
@@ -26,6 +28,42 @@ export default function AdminSidebar({ active, lowStockCount = 0 }) {
     // Redirect to login (keep left-aligned behavior consistent with pages)
     navigate("/login");
   };
+
+  // Global low stock badge (visible on all pages)
+  useEffect(() => {
+    const fetchLowStock = async () => {
+      const { data: ingredients, error: ingError } = await supabase
+        .from("ingredient-list")
+        .select("id");
+      if (ingError || !ingredients) return;
+      const { data: movements, error: movError } = await supabase
+        .from("stock_movement")
+        .select("ingredient_id, type, quantity");
+      if (movError || !movements) return;
+      const summary = {};
+      for (const ing of ingredients) summary[ing.id] = 0;
+      for (const m of movements) {
+        if (summary[m.ingredient_id] !== undefined) {
+          summary[m.ingredient_id] +=
+            m.type === "in" ? m.quantity : -m.quantity;
+        }
+      }
+      const count = Object.values(summary).filter(
+        (q) => q > 0 && q <= 5
+      ).length;
+      setLowStockCount(count);
+    };
+    fetchLowStock();
+    const sub = supabase
+      .channel("stock-movement-lowstock-sidebar")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stock_movement" },
+        fetchLowStock
+      )
+      .subscribe();
+    return () => supabase.removeChannel(sub);
+  }, []);
 
   return (
     <>
