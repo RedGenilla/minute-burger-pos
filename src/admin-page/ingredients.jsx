@@ -1012,7 +1012,7 @@ export default function IngredientsDashboard() {
                       {/* duplicate img-based icons removed; inline SVG buttons above used instead */}
                     </td>
                     {/* Stock In/Out Modal */}
-                    {showStockModal && stockItem && (
+                    {/*{showStockModal && stockItem && (
                       <div className="modal-bg">
                         <div className="ingredients-modal">
                           <div className="adduser-header-bar">
@@ -1086,7 +1086,7 @@ export default function IngredientsDashboard() {
                           </form>
                         </div>
                       </div>
-                    )}
+                    )}*/}
                   </tr>
                 ))
               )}
@@ -1268,16 +1268,27 @@ export default function IngredientsDashboard() {
                   </div>
                   <div>
                     <label>Units</label>
-                    <input
+                    <select
                       name="units"
-                      type="text"
                       value={newItem.units}
                       onChange={(e) =>
                         setNewItem({ ...newItem, units: e.target.value })
                       }
                       required
-                      placeholder="e.g. pc, g, ml"
-                    />
+                    >
+                      <option value="">Select units</option>
+                      <option value="pc">pc</option>
+                      <option value="strips / pack">strips / pack</option>
+                      <option value="slice">slice</option>
+                      <option value="g / L">g / L</option>
+                      <option value="g">g</option>
+                      <option value="pc / g">pc / g</option>
+                      <option value="kg">kg</option>
+                      <option value="g / ml">g / ml</option>
+                      <option value="pack">pack</option>
+                      <option value="ml">ml</option>
+                      <option value="btl">btl</option>
+                    </select>
                   </div>
                 </div>
 

@@ -152,7 +152,9 @@ export default function AdminBoard() {
 
   // Open block/unblock confirm modal
   const openBlockConfirm = (u) => {
-    const isBanned = String(u.status).toLowerCase() === "banned";
+    const statusLc = String(u.status).toLowerCase();
+    // Treat both 'banned' and legacy 'blocked' as banned
+    const isBanned = statusLc === "banned" || statusLc === "blocked";
     setBlockTarget(u);
     setBlockAction(isBanned ? "unblock" : "block");
     setBlockError("");
@@ -165,7 +167,8 @@ export default function AdminBoard() {
     setBlockLoading(true);
     setBlockError("");
     try {
-      const newStatus = blockAction === "block" ? "Blocked" : "Active";
+      // Normalize stored status to 'Banned' for consistency
+      const newStatus = blockAction === "block" ? "Banned" : "Active";
 
       const { error } = await supabase
         .from("users")
@@ -364,18 +367,24 @@ export default function AdminBoard() {
                       </button>
                       <button
                         className={`block-icon-btn ${
-                          String(u.status).toLowerCase() === "banned"
+                          ["banned", "blocked"].includes(
+                            String(u.status).toLowerCase()
+                          )
                             ? "is-banned"
                             : "can-block"
                         }`}
                         onClick={() => openBlockConfirm(u)}
                         aria-label={
-                          String(u.status).toLowerCase() === "banned"
+                          ["banned", "blocked"].includes(
+                            String(u.status).toLowerCase()
+                          )
                             ? "Unblock user"
                             : "Block user"
                         }
                         title={
-                          String(u.status).toLowerCase() === "banned"
+                          ["banned", "blocked"].includes(
+                            String(u.status).toLowerCase()
+                          )
                             ? "Unblock user"
                             : "Block user"
                         }
