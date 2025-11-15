@@ -191,6 +191,7 @@ export default function MenuBoard() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState("");
   const [refreshMenu, setRefreshMenu] = useState(false);
+  const [editImageFile, setEditImageFile] = useState(null); // NEW: image file state for edit modal
 
   const [newItem, setNewItem] = useState({
     item_name: "",
@@ -201,6 +202,12 @@ export default function MenuBoard() {
     image: null,
     ingredients: [], // local state for form
   });
+  // NEW: confirmation modal state for adding a menu item
+  const [showAddConfirm, setShowAddConfirm] = useState(false);
+  // NEW: validation modal for missing required fields (only X to close)
+  const [showAddValidation, setShowAddValidation] = useState(false);
+  const [missingFields, setMissingFields] = useState([]);
+  const [showEditConfirm, setShowEditConfirm] = useState(false); // NEW: edit confirmation modal
 
   // Helper: get latest unit cost for an ingredient from stock_movement
   const getLatestUnitCost = async (ingredientId) => {
@@ -576,17 +583,24 @@ export default function MenuBoard() {
     return allAvailable;
   };
 
-  const addItem = async (e) => {
-    e.preventDefault();
+  const performAddItem = async () => {
+    // Hide confirmation modal (if open)
+    setShowAddConfirm(false);
     if (
-      !newItem.image ||
       !newItem.item_name.trim() ||
       !newItem.category.trim() ||
       !String(newItem.price).trim() ||
       !newItem.status.trim() ||
-      !newItem.description.trim()
+      newItem.ingredients.length === 0
     ) {
-      alert("Please fill out all fields and upload an image.");
+      // Safety guard; normally caught earlier
+      const mf = [];
+      if (!newItem.item_name.trim()) mf.push("Name");
+      if (!newItem.category.trim()) mf.push("Category");
+      if (!String(newItem.price).trim()) mf.push("Price");
+      if (newItem.ingredients.length === 0) mf.push("Ingredients");
+      setMissingFields(mf);
+      setShowAddValidation(true);
       return;
     }
     const isAvailable = await checkIngredientsAvailability(newItem.ingredients);
@@ -607,13 +621,18 @@ export default function MenuBoard() {
           upsert: false,
         });
       if (uploadError) {
-        alert("Image upload failed: " + uploadError.message);
-        return;
+        console.warn(
+          "Image upload failed, using default logo:",
+          uploadError.message
+        );
       }
       const { data: publicUrlData } = supabase.storage
         .from("manu-images")
         .getPublicUrl(fileName);
       image_url = publicUrlData.publicUrl;
+    } else {
+      // Fallback to default logo asset (ensure exists at this path)
+      image_url = "/src/assets/minute-burger-logo.avif";
     }
     // Calculate total_unit_cost for this menu item
     let totalUnitCost = 0;
@@ -719,6 +738,23 @@ export default function MenuBoard() {
     setRefreshMenu((p) => !p);
   };
 
+  // Trigger showing confirmation modal after basic field validation
+  const handleAddMenuItemClick = () => {
+    const mf = [];
+    if (!newItem.item_name.trim()) mf.push("Name");
+    if (!newItem.category.trim()) mf.push("Category");
+    if (!String(newItem.price).trim()) mf.push("Price");
+    if (newItem.ingredients.length === 0) mf.push("Ingredients");
+    if (mf.length) {
+      setMissingFields(mf);
+      setShowAddValidation(true);
+      return;
+    }
+    setMissingFields([]);
+    setShowAddValidation(false);
+    setShowAddConfirm(true);
+  };
+
   // edit item
   const openEditModal = (m) => {
     const fetchIngredients = async () => {
@@ -740,8 +776,7 @@ export default function MenuBoard() {
     fetchIngredients();
   };
 
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
+  const performEditItem = async () => {
     setEditLoading(true);
     const isAvailable = await checkIngredientsAvailability(
       editItem.ingredients
@@ -749,15 +784,45 @@ export default function MenuBoard() {
     const itemStatus = isAvailable ? "Active" : "Inactive";
     if (!isAvailable)
       alert("One or more ingredients exceed inventory. Item will be Inactive.");
+
+    // Prepare update fields
+    const updateFields = {
+      item_name: editItem.item_name,
+      category: editItem.category,
+      price: editItem.price,
+      status: itemStatus,
+      description: editItem.description,
+    };
+
+    // Upload new image if selected
+    if (editImageFile) {
+      try {
+        const ext = editImageFile.name.split(".").pop();
+        const fileName = `${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2, 8)}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("manu-images")
+          .upload(fileName, editImageFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage
+            .from("manu-images")
+            .getPublicUrl(fileName);
+          updateFields.image_url = publicUrlData.publicUrl;
+        } else {
+          console.warn("Edit image upload failed:", uploadError.message);
+        }
+      } catch (err) {
+        console.warn("Unexpected error uploading edit image", err);
+      }
+    }
+
     const { error } = await supabase
       .from("menu-list")
-      .update({
-        item_name: editItem.item_name,
-        category: editItem.category,
-        price: editItem.price,
-        status: itemStatus,
-        description: editItem.description,
-      })
+      .update(updateFields)
       .eq("id", editItem.id);
     if (error) setEditError("Failed to update item");
     else {
@@ -767,7 +832,6 @@ export default function MenuBoard() {
         .delete()
         .eq("menu_id", editItem.id);
       for (const ing of editItem.ingredients) {
-        // Find ingredient_id from ingredient-list
         const { data: ingData, error: ingError } = await supabase
           .from("ingredient-list")
           .select("id")
@@ -783,7 +847,7 @@ export default function MenuBoard() {
           created_at: new Date().toISOString(),
         });
       }
-      // Recalculate total_unit_cost for this menu item using latest costs
+      // Recalculate total_unit_cost
       let recalculatedCost = 0;
       for (const ing of editItem.ingredients) {
         const { data: ingData, error: ingError } = await supabase
@@ -800,10 +864,25 @@ export default function MenuBoard() {
         .update({ total_unit_cost: recalculatedCost })
         .eq("id", editItem.id);
       setShowEditModal(false);
+      setEditImageFile(null);
       setRefreshMenu((prev) => !prev);
     }
     setEditLoading(false);
     setRefreshMenu((p) => !p);
+  };
+
+  const handleEditSaveClick = () => {
+    const mf = [];
+    if (!editItem.item_name?.trim()) mf.push("Name");
+    if (!editItem.category?.trim()) mf.push("Category");
+    if (!String(editItem.price).trim()) mf.push("Price");
+    if (!getIngredientsForDisplay(editItem).length) mf.push("Ingredients");
+    if (mf.length) {
+      setMissingFields(mf);
+      setShowAddValidation(true); // reuse existing validation modal
+      return;
+    }
+    setShowEditConfirm(true);
   };
 
   const displayedItems = menuItems
@@ -1029,7 +1108,10 @@ export default function MenuBoard() {
                   </svg>
                 </button>
               </div>
-              <form className="adduser-form" onSubmit={addItem}>
+              <form
+                className="adduser-form"
+                onSubmit={(e) => e.preventDefault()}
+              >
                 <div
                   className="adduser-modal-row"
                   style={{ display: "flex", gap: 24 }}
@@ -1085,7 +1167,7 @@ export default function MenuBoard() {
                       />
                     </div>
 
-                    <label>Description:</label>
+                    <label>Description (optional):</label>
                     <textarea
                       value={newItem.description}
                       onChange={(e) =>
@@ -1094,7 +1176,6 @@ export default function MenuBoard() {
                           description: e.target.value,
                         }))
                       }
-                      required
                       className="adduser-description"
                     />
 
@@ -1429,11 +1510,90 @@ export default function MenuBoard() {
                     </svg>
                     <span>Add</span>
                   </button>
-                  <button type="submit" className="btn-add-menu-item">
+                  <button
+                    type="button"
+                    className="btn-add-menu-item"
+                    onClick={handleAddMenuItemClick}
+                  >
                     Add Menu Item
                   </button>
                 </div>
               </form>
+              {showAddConfirm && (
+                <div
+                  className="logout-modal-overlay"
+                  role="dialog"
+                  aria-modal="true"
+                >
+                  <div className="logout-modal">
+                    <h3 className="logout-modal-title">Confirm Add Item</h3>
+                    <p className="logout-modal-text">
+                      Add this item to the menu?
+                    </p>
+                    <div className="logout-modal-actions">
+                      <button
+                        className="btn-cancel"
+                        onClick={() => setShowAddConfirm(false)}
+                      >
+                        No
+                      </button>
+                      <button className="btn-confirm" onClick={performAddItem}>
+                        Confirm
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {showAddValidation && (
+                <div
+                  className="logout-modal-overlay"
+                  role="dialog"
+                  aria-modal="true"
+                >
+                  <div
+                    className="logout-modal"
+                    style={{ position: "relative" }}
+                  >
+                    <button
+                      className="modal-close-x"
+                      aria-label="Close"
+                      onClick={() => setShowAddValidation(false)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#000"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                    <h3 className="logout-modal-title">
+                      Missing Required Fields
+                    </h3>
+                    <p className="logout-modal-text">
+                      Please complete the following before adding:
+                    </p>
+                    <ul
+                      style={{
+                        margin: "8px 0 0 0",
+                        paddingLeft: 18,
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      {missingFields.map((f) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1467,21 +1627,64 @@ export default function MenuBoard() {
                   </svg>
                 </button>
               </div>
-              <form className="adduser-form" onSubmit={handleEditSubmit}>
+              <form
+                className="adduser-form"
+                onSubmit={(e) => e.preventDefault()}
+              >
                 <div className="adduser-modal-row">
                   <div className="adduser-modal-left">
                     <div
                       className="upload-box upload-box-modal"
-                      style={{ pointerEvents: "none", opacity: 0.7 }}
+                      onClick={() =>
+                        document
+                          .getElementById("edit-menu-image-input")
+                          ?.click()
+                      }
+                      role="button"
+                      tabIndex={0}
                     >
-                      {editItem.image_url ? (
-                        <img src={editItem.image_url} alt="Preview" />
+                      {editImageFile ? (
+                        <>
+                          <button
+                            type="button"
+                            className="upload-remove-btn"
+                            aria-label="Remove new image"
+                            title="Remove new image"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const input = document.getElementById(
+                                "edit-menu-image-input"
+                              );
+                              if (input) input.value = "";
+                              setEditImageFile(null);
+                            }}
+                          >
+                            ×
+                          </button>
+                          <img
+                            src={URL.createObjectURL(editImageFile)}
+                            alt="Preview"
+                          />
+                        </>
+                      ) : editItem.image_url ? (
+                        <img src={editItem.image_url} alt="Current" />
                       ) : (
                         <div className="upload-box-label">No Image</div>
                       )}
+                      <input
+                        id="edit-menu-image-input"
+                        type="file"
+                        accept="image/*"
+                        className="upload-input-hidden"
+                        onChange={(e) => {
+                          if (e.target.files[0]) {
+                            setEditImageFile(e.target.files[0]);
+                          }
+                        }}
+                      />
                     </div>
 
-                    <label>Description</label>
+                    <label>Description (optional)</label>
                     <textarea
                       value={editItem.description}
                       onChange={(e) =>
@@ -1490,7 +1693,6 @@ export default function MenuBoard() {
                           description: e.target.value,
                         }))
                       }
-                      required
                       className="adduser-description"
                     />
 
@@ -1726,15 +1928,47 @@ export default function MenuBoard() {
 
                 <div className="adduser-actions">
                   <button
-                    type="submit"
+                    type="button"
                     className="btn-add-menu-item"
                     disabled={editLoading}
+                    onClick={handleEditSaveClick}
                   >
                     Save Changes
                   </button>
                 </div>
                 {editError && <p className="error">{editError}</p>}
               </form>
+              {showEditConfirm && (
+                <div
+                  className="logout-modal-overlay"
+                  role="dialog"
+                  aria-modal="true"
+                >
+                  <div className="logout-modal">
+                    <h3 className="logout-modal-title">Confirm Save Changes</h3>
+                    <p className="logout-modal-text">
+                      Apply these changes to the menu item?
+                    </p>
+                    <div className="logout-modal-actions">
+                      <button
+                        className="btn-cancel"
+                        onClick={() => setShowEditConfirm(false)}
+                      >
+                        No
+                      </button>
+                      <button
+                        className="btn-confirm"
+                        onClick={() => {
+                          setShowEditConfirm(false);
+                          performEditItem();
+                        }}
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

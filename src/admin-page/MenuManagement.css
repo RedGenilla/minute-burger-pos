@@ -179,8 +179,8 @@
 
 .modal-close-x {
   position: absolute;
-  top: 15px;
-  right: 0px;
+  top: 12px;
+  right: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -669,6 +669,7 @@
   cursor: pointer;
   border: none;
   transition: background 0.2s;
+  width: 10%;
 }
 .btn-cancel {
   background: #e53935;

@@ -863,23 +863,28 @@ export default function IngredientsDashboard() {
                     <td>{item.quantity}</td>
                     <td>₱{item.cost}</td>
                     <td>
-                      <span className={`status ${item.status.toLowerCase()}`}>
-                        {item.status}
-                      </span>
-                      {item.lowStock && (
-                        <span
-                          style={{
-                            background: "red",
-                            color: "white",
-                            borderRadius: "6px",
-                            padding: "2px 8px",
-                            marginLeft: "8px",
-                            fontSize: "0.8em",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          Low Stock
+                      <div>
+                        <span className={`status ${item.status.toLowerCase()}`}>
+                          {item.status}
                         </span>
+                      </div>
+                      {item.lowStock && (
+                        <div style={{ marginTop: 6 }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              background: "red",
+                              color: "white",
+                              borderRadius: "2px",
+                              padding: "2px 5px",
+                              fontSize: "0.75em",
+                              fontWeight: "bold",
+                              letterSpacing: "0.5px",
+                            }}
+                          >
+                            Low Stock
+                          </span>
+                        </div>
                       )}
                     </td>
                     <td>
@@ -1012,7 +1017,7 @@ export default function IngredientsDashboard() {
                       {/* duplicate img-based icons removed; inline SVG buttons above used instead */}
                     </td>
                     {/* Stock In/Out Modal */}
-                    {/*{showStockModal && stockItem && (
+                    {showStockModal && stockItem && (
                       <div className="modal-bg">
                         <div className="ingredients-modal">
                           <div className="adduser-header-bar">
@@ -1086,7 +1091,7 @@ export default function IngredientsDashboard() {
                           </form>
                         </div>
                       </div>
-                    )}*/}
+                    )}
                   </tr>
                 ))
               )}
