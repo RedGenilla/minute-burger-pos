@@ -162,11 +162,18 @@ export default function IngredientsDashboard() {
   const [stockType, setStockType] = useState("in");
   const [stockItem, setStockItem] = useState(null);
   const [stockValues, setStockValues] = useState({
-    date: "",
     quantity: "",
     cost: "",
+    expires_at: "", // will hold datetime-local string e.g. 2025-11-17T14:30
+    reason: "",
   });
   const [stockError, setStockError] = useState("");
+  const [todayTransactions, setTodayTransactions] = useState([]);
+  const [showManualStockOutForm, setShowManualStockOutForm] = useState(false);
+  const [stockOutTransactions, setStockOutTransactions] = useState([]);
+  const [stockOutTxSearch, setStockOutTxSearch] = useState("");
+  const [stockOutTxTypeFilter, setStockOutTxTypeFilter] = useState("All");
+  const [showDeductForm, setShowDeductForm] = useState(false);
 
   const updateMenuItemStatus = async () => {
     const { data: menuItems, error: menuError } = await supabase
@@ -195,11 +202,12 @@ export default function IngredientsDashboard() {
           break;
         }
       }
-      const newStatus = isAvailable ? "Active" : "Inactive";
-      if (menuItem.status !== newStatus) {
+      // Only auto-downgrade to Inactive when inventory cannot satisfy recipe.
+      // Do not auto-activate items; respect any manual Inactive choice.
+      if (!isAvailable && menuItem.status !== "Inactive") {
         await supabase
           .from("menu-list")
-          .update({ status: newStatus })
+          .update({ status: "Inactive" })
           .eq("id", menuItem.id);
       }
     }
@@ -211,10 +219,28 @@ export default function IngredientsDashboard() {
       .order("date", { ascending: false });
     if (!error && data) setTransactions(data);
   };
-  const openStockModal = (item, type) => {
+  const openStockModal = async (item, type) => {
     setStockItem(item);
     setStockType(type);
-    setStockValues({ date: "", quantity: "", cost: "" });
+    setStockValues({ quantity: "", cost: "", expires_at: "", reason: "" });
+    setShowManualStockOutForm(false);
+    setStockOutTxSearch("");
+    setStockOutTxTypeFilter("All");
+    setShowDeductForm(false);
+
+    if (type === "out") {
+      // Fetch all transactions for this specific ingredient
+      const { data, error } = await supabase
+        .from("stock_movement")
+        .select("*")
+        .eq("ingredient_id", item.id)
+        .order("date", { ascending: false });
+
+      if (!error && data) {
+        setStockOutTransactions(data);
+      }
+    }
+
     setShowStockModal(true);
   };
 
@@ -228,10 +254,6 @@ export default function IngredientsDashboard() {
     setStockError("");
     if (!stockItem) {
       setStockError("No item selected.");
-      return;
-    }
-    if (!stockValues.date) {
-      setStockError("Date is required.");
       return;
     }
     if (
@@ -251,16 +273,41 @@ export default function IngredientsDashboard() {
         setStockError("Cost must be zero or a positive number.");
         return;
       }
+      if (!stockValues.expires_at) {
+        setStockError("Expiration date & time is required.");
+        return;
+      }
+      // validate expiration timestamp format and ensure future (or at least now)
+      const expDate = new Date(stockValues.expires_at);
+      if (isNaN(expDate.getTime())) {
+        setStockError("Invalid expiration date & time format.");
+        return;
+      }
+      const nowCheck = new Date();
+      if (expDate.getTime() <= nowCheck.getTime()) {
+        setStockError("Expiration must be in the future.");
+        return;
+      }
     }
     if (stockType === "out") {
       let currentQty = 0;
       const { data: movements } = await supabase
         .from("stock_movement")
-        .select("type, quantity")
+        .select("type, quantity, expires_at, date")
         .eq("ingredient_id", stockItem.id);
       if (movements) {
-        for (const m of movements)
-          currentQty += m.type === "in" ? m.quantity : -m.quantity;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        for (const m of movements) {
+          if (m.type === "in") {
+            const exp = m.expires_at ? new Date(m.expires_at) : null;
+            if (!exp || exp >= today) {
+              currentQty += Number(m.quantity);
+            }
+          } else if (m.type === "out") {
+            currentQty -= Number(m.quantity);
+          }
+        }
       }
       const outQty = Number(stockValues.quantity);
       if (outQty > currentQty) {
@@ -273,14 +320,20 @@ export default function IngredientsDashboard() {
       }
     }
     setLoading(true);
+    const nowIso = new Date().toISOString();
     const txData = {
       ingredient_id: stockItem.id,
       type: stockType,
-      date: stockValues.date,
+      date: nowIso,
       quantity: Number(stockValues.quantity),
       status: "Active",
-      created_at: new Date().toISOString(),
-      ...(stockType === "in" && { cost: Number(stockValues.cost) }),
+      created_at: nowIso,
+      reason: stockValues.reason || null,
+      ...(stockType === "in" && {
+        cost: Number(stockValues.cost),
+        // convert local datetime (no timezone) to ISO; treat as local timezone
+        expires_at: new Date(stockValues.expires_at).toISOString(),
+      }),
     };
     const { error } = await supabase.from("stock_movement").insert(txData);
     if (error) {
@@ -290,7 +343,8 @@ export default function IngredientsDashboard() {
     }
     setShowStockModal(false);
     setStockItem(null);
-    setStockValues({ date: "", quantity: "", cost: "" });
+    setShowManualStockOutForm(false);
+    setStockValues({ quantity: "", cost: "", expires_at: "", reason: "" });
     await fetchItems();
     setLoading(false);
   };
@@ -378,16 +432,22 @@ export default function IngredientsDashboard() {
     setItems(itemsData || []);
     const { data: movements } = await supabase
       .from("stock_movement")
-      .select("ingredient_id, type, quantity, cost");
+      .select("ingredient_id, type, quantity, cost, expires_at");
     if (movements) {
       const summary = {};
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       movements.forEach((m) => {
         if (!summary[m.ingredient_id]) {
           summary[m.ingredient_id] = { quantity: 0, lastCost: 0 };
         }
         if (m.type === "in") {
-          summary[m.ingredient_id].quantity += Number(m.quantity);
-          summary[m.ingredient_id].lastCost = Number(m.cost);
+          const exp = m.expires_at ? new Date(m.expires_at) : null;
+          // include if no expiration or not yet expired by exact timestamp
+          if (!exp || exp.getTime() >= Date.now()) {
+            summary[m.ingredient_id].quantity += Number(m.quantity);
+            summary[m.ingredient_id].lastCost = Number(m.cost);
+          }
         } else if (m.type === "out") {
           summary[m.ingredient_id].quantity -= Number(m.quantity);
         }
@@ -464,17 +524,19 @@ export default function IngredientsDashboard() {
     )
     .map((item) => {
       const summary = stockSummary[item.id] || { quantity: 0, lastCost: 0 };
+      // Do not display negative inventory; clamp to 0 for UI
+      const qty = Math.max(0, Number(summary.quantity) || 0);
       let status = "Inactive";
       let lowStock = false;
-      if (summary.quantity > LOW_STOCK_THRESHOLD) {
+      if (qty > LOW_STOCK_THRESHOLD) {
         status = "Active";
-      } else if (summary.quantity > 0) {
+      } else if (qty > 0) {
         status = "Active";
-        if (summary.quantity <= LOW_STOCK_THRESHOLD) lowStock = true;
+        if (qty <= LOW_STOCK_THRESHOLD) lowStock = true;
       }
       return {
         ...item,
-        quantity: summary.quantity,
+        quantity: qty,
         cost: summary.lastCost,
         status,
         lowStock,
@@ -782,6 +844,36 @@ export default function IngredientsDashboard() {
                           </b>
                         </div>
                         <div style={{ marginBottom: 2 }}>
+                          Date:{" "}
+                          {(() => {
+                            try {
+                              const d = new Date(tx.date);
+                              if (!isNaN(d.getTime()))
+                                return d.toLocaleString();
+                              return String(tx.date || "-");
+                            } catch {
+                              return String(tx.date || "-");
+                            }
+                          })()}
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
+                          Expiration:{" "}
+                          {tx.type === "in"
+                            ? tx.expires_at
+                              ? (() => {
+                                  try {
+                                    const d = new Date(tx.expires_at);
+                                    if (!isNaN(d.getTime()))
+                                      return d.toLocaleString();
+                                    return String(tx.expires_at);
+                                  } catch {
+                                    return String(tx.expires_at);
+                                  }
+                                })()
+                              : "-"
+                            : "-"}
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
                           Quantity: {tx.quantity}
                         </div>
                         <div style={{ marginBottom: 2 }}>
@@ -1016,82 +1108,6 @@ export default function IngredientsDashboard() {
                       </button>
                       {/* duplicate img-based icons removed; inline SVG buttons above used instead */}
                     </td>
-                    {/* Stock In/Out Modal */}
-                    {showStockModal && stockItem && (
-                      <div className="modal-bg">
-                        <div className="ingredients-modal">
-                          <div className="adduser-header-bar">
-                            <span className="adduser-title">
-                              {stockType === "in" ? "STOCK IN" : "STOCK OUT"} -{" "}
-                              {stockItem.name}
-                            </span>
-                          </div>
-                          <form
-                            className="adduser-form"
-                            onSubmit={handleStockSubmit}
-                          >
-                            <div className="ingredients-form-row">
-                              <div className="ingredients-form-col">
-                                <label>Date:</label>
-                                <input
-                                  name="date"
-                                  type="date"
-                                  value={stockValues.date}
-                                  onChange={handleStockChange}
-                                  required
-                                />
-                                <label>Quantity:</label>
-                                <input
-                                  name="quantity"
-                                  type="number"
-                                  value={stockValues.quantity}
-                                  onChange={handleStockChange}
-                                  required
-                                  min="1"
-                                />
-                                {stockType === "in" && (
-                                  <>
-                                    <label>Cost:</label>
-                                    <input
-                                      name="cost"
-                                      type="number"
-                                      value={stockValues.cost}
-                                      onChange={handleStockChange}
-                                      required
-                                      min="0"
-                                    />
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            {stockError && (
-                              <div
-                                style={{ color: "red", marginBottom: "8px" }}
-                              >
-                                {stockError}
-                              </div>
-                            )}
-                            <div className="modal-actions adduser-actions">
-                              <button
-                                type="submit"
-                                className="btn-confirm"
-                                disabled={loading}
-                              >
-                                {loading ? "Saving..." : "Confirm"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-cancel"
-                                onClick={() => setShowStockModal(false)}
-                                disabled={loading}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      </div>
-                    )}
                   </tr>
                 ))
               )}
@@ -1103,7 +1119,11 @@ export default function IngredientsDashboard() {
           <div className="modal-bg">
             <div
               className="adminboard-modal"
-              style={{ width: "420px", textAlign: "left" }}
+              style={{
+                width: stockType === "out" ? "700px" : "420px",
+                maxWidth: "95vw",
+                textAlign: "left",
+              }}
             >
               <button
                 className="modal-close-x"
@@ -1130,17 +1150,280 @@ export default function IngredientsDashboard() {
                 {stockType === "in" ? "STOCK IN" : "STOCK OUT"} -{" "}
                 {stockItem.name}
               </span>
-              <form className="adduser-form" onSubmit={handleStockSubmit}>
-                <label>Date</label>
-                <input
-                  name="date"
-                  type="date"
-                  value={stockValues.date}
-                  onChange={handleStockChange}
-                  required
-                />
 
-                {stockType === "in" ? (
+              {stockType === "out" ? (
+                <div style={{ marginTop: "16px" }}>
+                  {/* Header with Deduct button, Search, and Filters */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginBottom: "16px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {/* Left: Deduct button and Search */}
+                    <button
+                      type="button"
+                      className="add-btn"
+                      onClick={() => setShowDeductForm(!showDeductForm)}
+                      style={{ marginRight: "8px" }}
+                    >
+                      {showDeductForm ? "Cancel" : "+ Deduct"}
+                    </button>
+
+                    <div
+                      className="search-input-wrap"
+                      style={{ flex: "1 1 200px", minWidth: "200px" }}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="search-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                      </svg>
+                      <input
+                        type="text"
+                        className="search"
+                        placeholder="Search by reason..."
+                        value={stockOutTxSearch}
+                        onChange={(e) => setStockOutTxSearch(e.target.value)}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+
+                    {/* Right: Filters */}
+                    <select
+                      value={stockOutTxTypeFilter}
+                      onChange={(e) => setStockOutTxTypeFilter(e.target.value)}
+                      style={{
+                        padding: "8px 12px",
+                        border: "1px solid #ccc",
+                        borderRadius: 6,
+                        minWidth: "140px",
+                      }}
+                    >
+                      <option value="All">All Types</option>
+                      <option value="in">Stock In</option>
+                      <option value="out">Stock Out</option>
+                    </select>
+                  </div>
+
+                  {/* Inline Deduct Form */}
+                  {showDeductForm && (
+                    <form
+                      onSubmit={handleStockSubmit}
+                      style={{
+                        background: "#f9f9f9",
+                        border: "1px solid #ddd",
+                        borderRadius: "8px",
+                        padding: "16px",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "12px",
+                          alignItems: "flex-end",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ flex: "0 0 120px" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Quantity
+                          </label>
+                          <input
+                            name="quantity"
+                            type="number"
+                            value={stockValues.quantity}
+                            onChange={handleStockChange}
+                            required
+                            min="1"
+                            style={{
+                              width: "100%",
+                              padding: "8px",
+                              border: "1px solid #ccc",
+                              borderRadius: "4px",
+                            }}
+                          />
+                        </div>
+                        <div style={{ flex: "1 1 250px" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Reason (Optional)
+                          </label>
+                          <input
+                            name="reason"
+                            type="text"
+                            value={stockValues.reason}
+                            onChange={handleStockChange}
+                            placeholder="e.g., Damaged, Expired, Used for order"
+                            style={{
+                              width: "100%",
+                              padding: "8px",
+                              border: "1px solid #ccc",
+                              borderRadius: "4px",
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          className="btn-confirm"
+                          disabled={loading}
+                          style={{ padding: "8px 24px", minWidth: "120px" }}
+                        >
+                          {loading ? "Saving..." : "Confirm"}
+                        </button>
+                      </div>
+                      {stockError && (
+                        <div
+                          style={{
+                            color: "red",
+                            marginTop: "8px",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {stockError}
+                        </div>
+                      )}
+                    </form>
+                  )}
+
+                  {/* Transaction List */}
+                  <div style={{ maxHeight: "450px", overflowY: "auto" }}>
+                    {stockOutTransactions
+                      .filter((tx) =>
+                        stockOutTxTypeFilter === "All"
+                          ? true
+                          : tx.type === stockOutTxTypeFilter
+                      )
+                      .filter((tx) => {
+                        if (!stockOutTxSearch) return true;
+                        const reason = (tx.reason || "").toLowerCase();
+                        return reason.includes(stockOutTxSearch.toLowerCase());
+                      }).length === 0 ? (
+                      <div
+                        style={{
+                          padding: "32px",
+                          textAlign: "center",
+                          color: "#666",
+                        }}
+                      >
+                        No transactions found.
+                      </div>
+                    ) : (
+                      stockOutTransactions
+                        .filter((tx) =>
+                          stockOutTxTypeFilter === "All"
+                            ? true
+                            : tx.type === stockOutTxTypeFilter
+                        )
+                        .filter((tx) => {
+                          if (!stockOutTxSearch) return true;
+                          const reason = (tx.reason || "").toLowerCase();
+                          return reason.includes(
+                            stockOutTxSearch.toLowerCase()
+                          );
+                        })
+                        .map((tx) => (
+                          <div
+                            key={tx.id}
+                            style={{
+                              border: "1px solid #ccc",
+                              borderRadius: "8px",
+                              margin: "8px 0",
+                              padding: "12px",
+                              background:
+                                tx.type === "in" ? "#e6ffe6" : "#ffe6e6",
+                            }}
+                          >
+                            <div style={{ marginBottom: 2 }}>
+                              Type:{" "}
+                              <b
+                                style={{
+                                  color: tx.type === "in" ? "green" : "red",
+                                }}
+                              >
+                                {tx.type.toUpperCase()}
+                              </b>
+                            </div>
+                            <div style={{ marginBottom: 2 }}>
+                              Date:{" "}
+                              {(() => {
+                                try {
+                                  const d = new Date(tx.date);
+                                  if (!isNaN(d.getTime()))
+                                    return d.toLocaleString();
+                                  return String(tx.date || "-");
+                                } catch {
+                                  return String(tx.date || "-");
+                                }
+                              })()}
+                            </div>
+                            {tx.type === "in" && tx.expires_at && (
+                              <div style={{ marginBottom: 2 }}>
+                                Expiration:{" "}
+                                {(() => {
+                                  try {
+                                    const d = new Date(tx.expires_at);
+                                    if (!isNaN(d.getTime()))
+                                      return d.toLocaleString();
+                                    return String(tx.expires_at);
+                                  } catch {
+                                    return String(tx.expires_at);
+                                  }
+                                })()}
+                              </div>
+                            )}
+                            <div style={{ marginBottom: 2 }}>
+                              Quantity: {tx.quantity}
+                            </div>
+                            {tx.type === "in" && (
+                              <div style={{ marginBottom: 2 }}>
+                                Cost: ₱{tx.cost || "-"}
+                              </div>
+                            )}
+                            {tx.reason && (
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  fontStyle: "italic",
+                                  color: "#555",
+                                }}
+                              >
+                                Reason: {tx.reason}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <form className="adduser-form" onSubmit={handleStockSubmit}>
                   <div className="two-col-row">
                     <div>
                       <label>Quantity</label>
@@ -1165,35 +1448,32 @@ export default function IngredientsDashboard() {
                       />
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <label>Quantity</label>
-                    <input
-                      name="quantity"
-                      type="number"
-                      value={stockValues.quantity}
-                      onChange={handleStockChange}
-                      required
-                      min="1"
-                    />
-                  </>
-                )}
 
-                {stockError && (
-                  <div style={{ color: "red", marginBottom: "8px" }}>
-                    {stockError}
+                  <label>Expiration Date & Time</label>
+                  <input
+                    name="expires_at"
+                    type="datetime-local"
+                    value={stockValues.expires_at}
+                    onChange={handleStockChange}
+                    required
+                  />
+
+                  {stockError && (
+                    <div style={{ color: "red", marginBottom: "8px" }}>
+                      {stockError}
+                    </div>
+                  )}
+                  <div className="single-confirm-wrap">
+                    <button
+                      type="submit"
+                      className="btn-confirm full-width-confirm"
+                      disabled={loading}
+                    >
+                      {loading ? "Saving..." : "Confirm"}
+                    </button>
                   </div>
-                )}
-                <div className="single-confirm-wrap">
-                  <button
-                    type="submit"
-                    className="btn-confirm full-width-confirm"
-                    disabled={loading}
-                  >
-                    {loading ? "Saving..." : "Confirm"}
-                  </button>
-                </div>
-              </form>
+                </form>
+              )}
             </div>
           </div>
         )}

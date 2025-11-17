@@ -521,6 +521,27 @@
   gap: 8px;
 }
 
+/* Fix: Block/Unblock confirmation modal buttons showing clipped text.
+   Override any earlier generic button widths so labels render fully. */
+.block-modal .modal-actions .btn-cancel,
+.block-modal .modal-actions .btn-confirm {
+  width: auto; /* allow natural text width */
+  min-width: 110px; /* consistent clickable size */
+  padding: 8px 20px; /* readable horizontal padding */
+  border-radius: 24px; /* pill shape without clipping */
+  font-size: 0.95rem; /* uniform font size */
+  display: inline-flex; /* center text vertically */
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box; /* prevent overflow */
+}
+
+/* Ensure text is not clipped if user zooms */
+.block-modal .modal-actions .btn-cancel span,
+.block-modal .modal-actions .btn-confirm span {
+  white-space: nowrap;
+}
+
 /* Pagination - bottom right, subtle UI */
 .pagination-fixed {
   position: fixed;

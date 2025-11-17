@@ -463,12 +463,12 @@ export default function MenuBoard() {
                 break;
               }
             }
-            // If status needs to change, update menu-list
-            const newStatus = isAvailable ? "Active" : "Inactive";
-            if (menuItem.status !== newStatus) {
+            // Only auto-downgrade to Inactive when unavailable.
+            // Do not auto-activate; respect any manual Inactive state.
+            if (!isAvailable && menuItem.status !== "Inactive") {
               await supabase
                 .from("menu-list")
-                .update({ status: newStatus })
+                .update({ status: "Inactive" })
                 .eq("id", menuItem.id);
             }
           }
@@ -604,9 +604,19 @@ export default function MenuBoard() {
       return;
     }
     const isAvailable = await checkIngredientsAvailability(newItem.ingredients);
-    const itemStatus = isAvailable ? "Active" : "Inactive";
-    if (!isAvailable)
-      alert("One or more ingredients exceed inventory. Item will be Inactive.");
+    // Respect manual toggle: if user chose Inactive, keep it.
+    // Only set Active when user requests Active AND inventory allows it.
+    let itemStatus =
+      newItem.status === "Inactive"
+        ? "Inactive"
+        : isAvailable
+        ? "Active"
+        : "Inactive";
+    if (newItem.status === "Active" && !isAvailable) {
+      alert(
+        "One or more ingredients exceed inventory. Item will be set to Inactive."
+      );
+    }
 
     let image_url = null;
     if (newItem.image) {
@@ -725,11 +735,11 @@ export default function MenuBoard() {
             break;
           }
         }
-        const newStatus = available ? "Active" : "Inactive";
-        if (menuItem.status !== newStatus) {
+        // Auto-downgrade to Inactive when unavailable; do not auto-activate.
+        if (!available && menuItem.status !== "Inactive") {
           await supabase
             .from("menu-list")
-            .update({ status: newStatus })
+            .update({ status: "Inactive" })
             .eq("id", menuItem.id);
         }
       }
@@ -781,9 +791,19 @@ export default function MenuBoard() {
     const isAvailable = await checkIngredientsAvailability(
       editItem.ingredients
     );
-    const itemStatus = isAvailable ? "Active" : "Inactive";
-    if (!isAvailable)
-      alert("One or more ingredients exceed inventory. Item will be Inactive.");
+    // Respect manual toggle: keep Inactive if the user chose it.
+    // Only set Active when user requests Active AND inventory allows it.
+    const itemStatus =
+      editItem.status === "Inactive"
+        ? "Inactive"
+        : isAvailable
+        ? "Active"
+        : "Inactive";
+    if (editItem.status === "Active" && !isAvailable) {
+      alert(
+        "One or more ingredients exceed inventory. Item will be set to Inactive."
+      );
+    }
 
     // Prepare update fields
     const updateFields = {
@@ -795,6 +815,7 @@ export default function MenuBoard() {
     };
 
     // Upload new image if selected
+    let uploadedImageUrl = null;
     if (editImageFile) {
       try {
         const ext = editImageFile.name.split(".").pop();
@@ -812,6 +833,7 @@ export default function MenuBoard() {
             .from("manu-images")
             .getPublicUrl(fileName);
           updateFields.image_url = publicUrlData.publicUrl;
+          uploadedImageUrl = publicUrlData.publicUrl;
         } else {
           console.warn("Edit image upload failed:", uploadError.message);
         }
@@ -826,6 +848,22 @@ export default function MenuBoard() {
       .eq("id", editItem.id);
     if (error) setEditError("Failed to update item");
     else {
+      // Optimistic UI: update local list immediately so no page refresh needed
+      setMenuItems((prev) =>
+        (prev || []).map((m) =>
+          m.id === editItem.id
+            ? {
+                ...m,
+                item_name: editItem.item_name,
+                category: editItem.category,
+                price: editItem.price,
+                status: itemStatus,
+                description: editItem.description,
+                image_url: uploadedImageUrl ?? m.image_url,
+              }
+            : m
+        )
+      );
       // Remove old ingredients and insert new ones
       await supabase
         .from("menu_ingredients")
