@@ -137,26 +137,9 @@ export default function IngredientsDashboard() {
     status: "Inactive",
   });
 
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [editValues, setEditValues] = useState({
-    code: "",
-    name: "",
-    category: "",
-    units: "",
-    status: "Inactive",
-  });
-
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Status");
   const [categoryFilter, setCategoryFilter] = useState("Category");
-
-  const [showTransactionsModal, setShowTransactionsModal] = useState(false);
-  const [transactions, setTransactions] = useState([]);
-  const [txTypeFilter, setTxTypeFilter] = useState("All");
-  const [txCategoryFilter, setTxCategoryFilter] = useState("All");
-  const [txSearchInput, setTxSearchInput] = useState("");
-  const [txSearch, setTxSearch] = useState("");
 
   const [showStockModal, setShowStockModal] = useState(false);
   const [stockType, setStockType] = useState("in");
@@ -168,12 +151,95 @@ export default function IngredientsDashboard() {
     reason: "",
   });
   const [stockError, setStockError] = useState("");
-  const [todayTransactions, setTodayTransactions] = useState([]);
-  const [showManualStockOutForm, setShowManualStockOutForm] = useState(false);
   const [stockOutTransactions, setStockOutTransactions] = useState([]);
   const [stockOutTxSearch, setStockOutTxSearch] = useState("");
   const [stockOutTxTypeFilter, setStockOutTxTypeFilter] = useState("All");
   const [showDeductForm, setShowDeductForm] = useState(false);
+
+  // Helper: format transaction date using created_at if available (full timestamp),
+  // fall back to date (which may be a DATE only). If the value represents a UTC
+  // midnight date (rendering as 8:00 AM locally) or is date-only, show just the
+  // local date without a misleading time.
+  const formatTxDate = (tx) => {
+    try {
+      const raw = tx.created_at || tx.date;
+      if (!raw) return "-";
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return String(raw);
+      const isDateOnly = /^(\d{4}-\d{2}-\d{2})$/.test(raw);
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+      // If backend truncated time (midnight UTC -> 8 AM local) OR date-only, hide time.
+      const looksLikeMidnightShift = hours === 8 && minutes === 0 && isDateOnly;
+      if (isDateOnly || looksLikeMidnightShift) {
+        return d.toLocaleDateString();
+      }
+      return d.toLocaleString();
+    } catch {
+      return "-";
+    }
+  };
+
+  // // Helper: calculate dynamic expiration warning message
+  // const getExpirationWarning = (expirationDate) => {
+  //   if (!expirationDate) return null;
+  //   const now = Date.now();
+  //   const expMs = new Date(expirationDate).getTime();
+  //   const diff = expMs - now;
+
+  //   if (diff <= 0) return "Expired";
+
+  //   const oneHour = 60 * 60 * 1000;
+  //   const oneDay = 24 * oneHour;
+
+  //   if (diff < oneHour) {
+  //     return "Expires in less than 1 hour";
+  //   } else if (diff < oneDay) {
+  //     const hours = Math.floor(diff / oneHour);
+  //     return `Expires in ${hours} hour${hours > 1 ? "s" : ""}`;
+  //   } else {
+  //     const days = Math.floor(diff / oneDay);
+  //     return `Expires in ${days} day${days > 1 ? "s" : ""}`;
+  //   }
+  // };
+
+  // Notification Bell State
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationTab, setNotificationTab] = useState("lowStock"); // 'lowStock' or 'expiring'
+  const [lowStockNotifications, setLowStockNotifications] = useState([]);
+  const [expiringNotifications, setExpiringNotifications] = useState([]);
+  const [resolvedNotifications, setResolvedNotifications] = useState(() => {
+    try {
+      const saved = localStorage.getItem("resolvedNotifications");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Save resolved notifications to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "resolvedNotifications",
+        JSON.stringify(Array.from(resolvedNotifications))
+      );
+    } catch (error) {
+      console.error("Failed to save resolved notifications:", error);
+    }
+  }, [resolvedNotifications]);
+
+  // View Logs State
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [logsItem, setLogsItem] = useState(null);
+  const [itemLogs, setItemLogs] = useState([]);
+
+  // Expired Items State
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const [expiredItems, setExpiredItems] = useState([]);
+
+  // Store batch data for expiration warnings
+  const [batchData, setBatchData] = useState({});
 
   const updateMenuItemStatus = async () => {
     const { data: menuItems, error: menuError } = await supabase
@@ -212,18 +278,26 @@ export default function IngredientsDashboard() {
       }
     }
   };
-  const fetchTransactions = async () => {
+
+  const openLogsModal = async (item) => {
+    setLogsItem(item);
+    // Fetch all stock movements for this item
     const { data, error } = await supabase
       .from("stock_movement")
-      .select("*, ingredient-list(name, code)")
+      .select("*")
+      .eq("ingredient_id", item.id)
       .order("date", { ascending: false });
-    if (!error && data) setTransactions(data);
+
+    if (!error && data) {
+      setItemLogs(data);
+    }
+    setShowLogsModal(true);
   };
+
   const openStockModal = async (item, type) => {
     setStockItem(item);
     setStockType(type);
     setStockValues({ quantity: "", cost: "", expires_at: "", reason: "" });
-    setShowManualStockOutForm(false);
     setStockOutTxSearch("");
     setStockOutTxTypeFilter("All");
     setShowDeductForm(false);
@@ -252,100 +326,108 @@ export default function IngredientsDashboard() {
   const handleStockSubmit = async (e) => {
     e.preventDefault();
     setStockError("");
-    if (!stockItem) {
-      setStockError("No item selected.");
-      return;
-    }
-    if (
-      !stockValues.quantity ||
-      isNaN(stockValues.quantity) ||
-      Number(stockValues.quantity) <= 0
-    ) {
-      setStockError("Quantity must be a positive number.");
-      return;
-    }
-    if (stockType === "in") {
-      if (
-        !stockValues.cost ||
-        isNaN(stockValues.cost) ||
-        Number(stockValues.cost) < 0
-      ) {
-        setStockError("Cost must be zero or a positive number.");
-        return;
-      }
-      if (!stockValues.expires_at) {
-        setStockError("Expiration date & time is required.");
-        return;
-      }
-      // validate expiration timestamp format and ensure future (or at least now)
-      const expDate = new Date(stockValues.expires_at);
-      if (isNaN(expDate.getTime())) {
-        setStockError("Invalid expiration date & time format.");
-        return;
-      }
-      const nowCheck = new Date();
-      if (expDate.getTime() <= nowCheck.getTime()) {
-        setStockError("Expiration must be in the future.");
-        return;
-      }
-    }
+    if (!stockItem) return;
+
+    // ...existing validation above...
+
     if (stockType === "out") {
-      let currentQty = 0;
-      const { data: movements } = await supabase
+      // Reuse FIFO availability for real-time, expiry-aware validation
+      const { data: movs } = await supabase
         .from("stock_movement")
-        .select("type, quantity, expires_at, date")
+        .select(
+          "id, ingredient_id, type, quantity, cost, expires_at, date, created_at"
+        )
         .eq("ingredient_id", stockItem.id);
-      if (movements) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        for (const m of movements) {
-          if (m.type === "in") {
-            const exp = m.expires_at ? new Date(m.expires_at) : null;
-            if (!exp || exp >= today) {
-              currentQty += Number(m.quantity);
-            }
-          } else if (m.type === "out") {
-            currentQty -= Number(m.quantity);
-          }
-        }
-      }
+
+      const { quantity: availableNow } = computeAvailableQty(movs || []);
       const outQty = Number(stockValues.quantity);
-      if (outQty > currentQty) {
-        setStockError(`Cannot stock out more than available (${currentQty}).`);
-        return;
-      }
-      if (currentQty - outQty < 0) {
-        setStockError("Negative inventory not allowed.");
+      if (outQty > availableNow) {
+        setStockError(
+          `Cannot stock out more than available (${availableNow}).`
+        );
         return;
       }
     }
+
     setLoading(true);
     const nowIso = new Date().toISOString();
     const txData = {
       ingredient_id: stockItem.id,
       type: stockType,
-      date: nowIso,
+      date: nowIso, // store current timestamp
+      created_at: nowIso, // also store current timestamp
       quantity: Number(stockValues.quantity),
-      status: "Active",
-      created_at: nowIso,
+      status: stockType === "out" ? "completed" : "Active",
       reason: stockValues.reason || null,
       ...(stockType === "in" && {
         cost: Number(stockValues.cost),
-        // convert local datetime (no timezone) to ISO; treat as local timezone
         expires_at: new Date(stockValues.expires_at).toISOString(),
       }),
     };
+
     const { error } = await supabase.from("stock_movement").insert(txData);
     if (error) {
       setStockError("Failed to save transaction: " + error.message);
       setLoading(false);
       return;
     }
+
+    // Check if notifications should be resolved
+    if (stockType === "in") {
+      // After stock-in, check if low stock is resolved
+      const { data: movements } = await supabase
+        .from("stock_movement")
+        .select(
+          "id, ingredient_id, type, quantity, cost, expires_at, date, created_at"
+        )
+        .eq("ingredient_id", stockItem.id);
+
+      if (movements) {
+        const { quantity: newQty } = computeAvailableQty(movements);
+        // If quantity is now above threshold, mark low stock notifications as resolved
+        if (newQty > LOW_STOCK_THRESHOLD) {
+          const newResolved = new Set(resolvedNotifications);
+          lowStockNotifications.forEach((notif) => {
+            if (notif.item_id === stockItem.id) {
+              newResolved.add(notif.id);
+            }
+          });
+          setResolvedNotifications(newResolved);
+        }
+      }
+    } else if (stockType === "out" && stockValues.reason) {
+      // After deduct, if reason contains 'expired', resolve expiring notifications for this item
+      const reasonLower = stockValues.reason.toLowerCase();
+      if (reasonLower.includes("expired") || reasonLower.includes("expire")) {
+        const newResolved = new Set(resolvedNotifications);
+        expiringNotifications.forEach((notif) => {
+          if (notif.item_id === stockItem.id) {
+            newResolved.add(notif.id);
+          }
+        });
+        setResolvedNotifications(newResolved);
+      }
+    }
+
     setShowStockModal(false);
     setStockItem(null);
-    setShowManualStockOutForm(false);
     setStockValues({ quantity: "", cost: "", expires_at: "", reason: "" });
+
+    // Refresh inventory + logs to reflect immediately
     await fetchItems();
+    if (
+      showLogsModal &&
+      logsItem &&
+      logsItem.id === (txData.ingredient_id || stockItem.id)
+    ) {
+      const { data } = await supabase
+        .from("stock_movement")
+        .select("*")
+        .eq("ingredient_id", txData.ingredient_id || stockItem.id)
+        .order("date", { ascending: false });
+      if (data) setItemLogs(data);
+    }
+
     setLoading(false);
   };
 
@@ -424,38 +506,191 @@ export default function IngredientsDashboard() {
     }
   };
 
+  // Helper: robust available stock using FIFO across batches
+  function computeAvailableQty(movs = [], returnBatches = false) {
+    const now = Date.now();
+    const batches = []; // { qty, expMs, originalQty, batchId, expires_at }
+    let lastCost = 0;
+
+    const sorted = [...movs].sort((a, b) => {
+      const da = new Date(a.created_at || a.date).getTime();
+      const db = new Date(b.created_at || b.date).getTime();
+      if (da !== db) return da - db;
+      // fall back to id if present to stabilize order
+      return (a.id || 0) - (b.id || 0);
+    });
+
+    for (const m of sorted) {
+      const qty = Number(m.quantity) || 0;
+      if (m.type === "in") {
+        if (qty <= 0) continue;
+        const expMs = m.expires_at
+          ? new Date(m.expires_at).getTime()
+          : Infinity;
+        batches.push({
+          qty,
+          expMs,
+          originalQty: qty,
+          batchId: m.id,
+          expires_at: m.expires_at,
+          cost: m.cost,
+        });
+        if (m.cost != null) lastCost = Number(m.cost) || lastCost;
+      } else if (m.type === "out") {
+        // Respect expiry at the time of the OUT event.
+        // Only deduct from batches that were NOT expired when this OUT happened.
+        const outTime = new Date(m.created_at || m.date).getTime();
+        let remaining = qty;
+        for (const b of batches) {
+          if (remaining <= 0) break;
+          // Skip batches already expired at the time of this OUT
+          if (b.expMs < outTime) continue;
+          const take = Math.min(remaining, b.qty);
+          b.qty -= take;
+          remaining -= take;
+        }
+      }
+    }
+
+    const quantity = batches.reduce(
+      (sum, b) => sum + (b.expMs >= now ? b.qty : 0),
+      0
+    );
+
+    if (returnBatches) {
+      // Return active batches with their current quantities
+      const activeBatches = batches.filter((b) => b.qty > 0 && b.expMs >= now);
+      return { quantity, lastCost, batches: activeBatches };
+    }
+
+    return { quantity, lastCost };
+  }
+
   const fetchItems = async () => {
     setLoading(true);
     const { data: itemsData } = await supabase
       .from("ingredient-list")
       .select("*");
-    setItems(itemsData || []);
+
     const { data: movements } = await supabase
       .from("stock_movement")
-      .select("ingredient_id, type, quantity, cost, expires_at");
+      .select(
+        "id, ingredient_id, type, quantity, cost, expires_at, date, created_at"
+      );
+
+    setItems(itemsData || []);
+
     if (movements) {
+      // group by ingredient and compute FIFO availability
+      const byIng = movements.reduce((acc, m) => {
+        (acc[m.ingredient_id] ||= []).push(m);
+        return acc;
+      }, {});
       const summary = {};
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      movements.forEach((m) => {
-        if (!summary[m.ingredient_id]) {
-          summary[m.ingredient_id] = { quantity: 0, lastCost: 0 };
+      const batchInfo = {};
+      const expired = [];
+      const now = Date.now();
+
+      for (const [ingId, list] of Object.entries(byIng)) {
+        const { quantity, lastCost, batches } = computeAvailableQty(list, true);
+        summary[ingId] = { quantity, lastCost };
+        batchInfo[ingId] = batches || [];
+
+        // Track expired items
+        const item = itemsData?.find((i) => i.id === Number(ingId));
+        if (item) {
+          list.forEach((m) => {
+            if (m.type === "in" && m.expires_at) {
+              const expMs = new Date(m.expires_at).getTime();
+              if (expMs < now) {
+                expired.push({
+                  id: m.id,
+                  item_name: item.name,
+                  item_code: item.code,
+                  quantity: Number(m.quantity) || 0,
+                  expired_at: new Date(expMs),
+                  cost: m.cost,
+                });
+              }
+            }
+          });
         }
-        if (m.type === "in") {
-          const exp = m.expires_at ? new Date(m.expires_at) : null;
-          // include if no expiration or not yet expired by exact timestamp
-          if (!exp || exp.getTime() >= Date.now()) {
-            summary[m.ingredient_id].quantity += Number(m.quantity);
-            summary[m.ingredient_id].lastCost = Number(m.cost);
-          }
-        } else if (m.type === "out") {
-          summary[m.ingredient_id].quantity -= Number(m.quantity);
-        }
-      });
+      }
       setStockSummary(summary);
+      setBatchData(batchInfo);
+      // Sort expired items from most recent to oldest
+      expired.sort((a, b) => b.expired_at.getTime() - a.expired_at.getTime());
+      setExpiredItems(expired);
+    } else {
+      setStockSummary({});
+      setBatchData({});
+      setExpiredItems([]);
     }
+
     await updateMenuItemStatus();
+    await detectNotifications(itemsData || [], movements || []);
     setLoading(false);
+  };
+
+  // Detect low stock and expiring notifications
+  const detectNotifications = (itemsData, movements) => {
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const lowStock = [];
+    const expiring = [];
+
+    // Group movements by ingredient for reuse with computeAvailableQty
+    const byIng = {};
+    (movements || []).forEach((m) => {
+      (byIng[m.ingredient_id] ||= []).push(m);
+    });
+
+    itemsData.forEach((item) => {
+      const movs = byIng[item.id] || [];
+      const { quantity, batches } = computeAvailableQty(movs, true);
+
+      // Low stock (same rule as table + badge)
+      if (quantity > 0 && quantity <= LOW_STOCK_THRESHOLD) {
+        lowStock.push({
+          id: `lowstock-${item.id}`,
+          item_id: item.id,
+          item_name: item.name,
+          item_code: item.code,
+          quantity,
+          type: "lowStock",
+        });
+      }
+
+      // Per-batch expiring notifications with current remaining quantity
+      if (batches && batches.length > 0) {
+        batches.forEach((batch) => {
+          if (batch.expires_at && batch.qty > 0) {
+            const expMs = new Date(batch.expires_at).getTime();
+            const timeToExpire = expMs - now;
+
+            // Only show if expiring within 7 days and still has quantity
+            if (timeToExpire > 0 && timeToExpire <= ONE_WEEK_MS) {
+              expiring.push({
+                id: `expiring-${item.id}-${batch.batchId}`,
+                item_id: item.id,
+                item_name: item.name,
+                item_code: item.code,
+                quantity: batch.qty, // Current remaining quantity for this batch
+                expires_at: new Date(expMs),
+                batchId: batch.batchId,
+                type: "expiring",
+              });
+            }
+          }
+        });
+      }
+    });
+
+    // Auto-remove expiring notifications when quantity reaches zero
+    const filteredExpiring = expiring.filter((notif) => notif.quantity > 0);
+
+    setLowStockNotifications(lowStock);
+    setExpiringNotifications(filteredExpiring);
   };
 
   useEffect(() => {
@@ -490,31 +725,7 @@ export default function IngredientsDashboard() {
     setLoading(false);
   };
 
-  const openEditModal = (item) => {
-    setEditItem(item);
-    setEditValues({ ...item });
-    setShowEditModal(true);
-  };
-
-  // removed unused handleEditChange to satisfy lint rules
-
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase
-      .from("ingredient-list")
-      .update({ ...editValues })
-      .eq("id", editItem.id);
-    if (!error) {
-      setShowEditModal(false);
-      // Immediately fetch latest inventory and menu item status after editing
-      await fetchItems();
-      // Optionally, fetch menu-list status if you want to show it in the UI
-      // const { data: menuItems } = await supabase.from("menu-list").select("id, name, status");
-      // setMenuItems(menuItems || []);
-    }
-    setLoading(false);
-  };
+  // Edit feature removed per request: all edit state and handlers eliminated.
 
   const displayedItems = items
     .filter(
@@ -534,12 +745,28 @@ export default function IngredientsDashboard() {
         status = "Active";
         if (qty <= LOW_STOCK_THRESHOLD) lowStock = true;
       }
+
+      // Get earliest expiring batch for this item
+      const batches = batchData[item.id] || [];
+      let nearestExpiration = null;
+      let expirationWarning = null;
+
+      if (batches.length > 0) {
+        const sortedBatches = [...batches].sort((a, b) => a.expMs - b.expMs);
+        if (sortedBatches[0] && sortedBatches[0].expires_at) {
+          nearestExpiration = sortedBatches[0].expires_at;
+          // expirationWarning = getExpirationWarning(nearestExpiration);
+        }
+      }
+
       return {
         ...item,
         quantity: qty,
         cost: summary.lastCost,
         status,
         lowStock,
+        expirationWarning,
+        nearestExpiration,
       };
     })
     .filter((item) => {
@@ -551,51 +778,291 @@ export default function IngredientsDashboard() {
       categoryFilter === "Category" ? true : item.category === categoryFilter
     );
 
+  // Calculate unresolved notification count
+  const unresolvedCount = (() => {
+    const lowStockUnresolved = lowStockNotifications.filter(
+      (notif) => !resolvedNotifications.has(notif.id)
+    ).length;
+    const expiringUnresolved = expiringNotifications.filter(
+      (notif) => !resolvedNotifications.has(notif.id)
+    ).length;
+    return lowStockUnresolved + expiringUnresolved;
+  })();
+
   return (
     <div className="opswat-admin">
-      <AdminSidebar
-        active="inventory"
-        lowStockCount={(() => {
-          try {
-            const count = (items || [])
-              .filter(
-                (item) =>
-                  item.name.toLowerCase().includes(search.toLowerCase()) ||
-                  item.code.toLowerCase().includes(search.toLowerCase())
-              )
-              .map((item) => {
-                const summary = stockSummary[item.id] || {
-                  quantity: 0,
-                  lastCost: 0,
-                };
-                let lowStock = false;
-                if (
-                  summary.quantity > 0 &&
-                  summary.quantity <= LOW_STOCK_THRESHOLD
-                ) {
-                  lowStock = true;
-                }
-                return { ...item, lowStock };
-              })
-              .filter((item) => {
-                if (filter === "Active" || filter === "Inactive") {
-                  const summary = stockSummary[item.id] || { quantity: 0 };
-                  const status = summary.quantity > 0 ? "Active" : "Inactive";
-                  return status === filter;
-                }
-                return true;
-              })
-              .filter((item) => item.lowStock).length;
-            return count;
-          } catch {
-            return 0;
-          }
-        })()}
-      />
+      <AdminSidebar active="inventory" notificationCount={unresolvedCount} />
 
       <main className="ops-main">
         <header className="ops-header">
           <h1>Inventory</h1>
+          <div style={{ position: "relative", marginLeft: "auto" }}>
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              style={{
+                background: "#facc15", // yellow circle background
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="22"
+                height="22"
+                fill="black"
+                stroke="black"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
+              >
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+              {lowStockNotifications.length + expiringNotifications.length >
+                0 && (
+                <span
+                  style={{
+                    background: "#e53e3e",
+                    color: "white",
+                    borderRadius: "50%",
+                    width: "20px",
+                    height: "20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    position: "absolute",
+                    top: "-6px",
+                    right: "-6px",
+                  }}
+                >
+                  {lowStockNotifications.length + expiringNotifications.length}
+                </span>
+              )}
+            </button>
+
+            {showNotifications && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "48px",
+                  right: "0",
+                  width: "400px",
+                  maxHeight: "500px",
+                  background: "white",
+                  border: "1px solid #ccc",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  zIndex: 1000,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    borderBottom: "1px solid #e0e0e0",
+                    padding: "8px",
+                  }}
+                >
+                  <button
+                    onClick={() => setNotificationTab("lowStock")}
+                    style={{
+                      flex: 1,
+                      padding: "8px 16px",
+                      border: "none",
+                      background:
+                        notificationTab === "lowStock"
+                          ? "#f97316"
+                          : "transparent",
+                      color: notificationTab === "lowStock" ? "white" : "#666",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontWeight:
+                        notificationTab === "lowStock" ? "bold" : "normal",
+                    }}
+                  >
+                    Low Stock ({lowStockNotifications.length})
+                  </button>
+                  <button
+                    onClick={() => setNotificationTab("expiring")}
+                    style={{
+                      flex: 1,
+                      padding: "8px 16px",
+                      border: "none",
+                      background:
+                        notificationTab === "expiring"
+                          ? "#f97316"
+                          : "transparent",
+                      color: notificationTab === "expiring" ? "white" : "#666",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontWeight:
+                        notificationTab === "expiring" ? "bold" : "normal",
+                    }}
+                  >
+                    Expiring Items ({expiringNotifications.length})
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    overflowY: "auto",
+                    maxHeight: "440px",
+                    padding: "12px",
+                  }}
+                >
+                  {notificationTab === "lowStock" &&
+                    (lowStockNotifications.length === 0 ? (
+                      <p
+                        style={{
+                          textAlign: "center",
+                          color: "#999",
+                          padding: "20px",
+                        }}
+                      >
+                        No low stock items
+                      </p>
+                    ) : (
+                      lowStockNotifications.map((notif) => {
+                        const isResolved = resolvedNotifications.has(notif.id);
+                        return (
+                          <div
+                            key={notif.id}
+                            style={{
+                              padding: "12px",
+                              marginBottom: "8px",
+                              background: isResolved ? "#f5f5f5" : "#fff3cd",
+                              border: `1px solid ${
+                                isResolved ? "#ddd" : "#ffc107"
+                              }`,
+                              borderRadius: "8px",
+                              boxShadow: isResolved
+                                ? "none"
+                                : "0 2px 4px rgba(255,193,7,0.2)",
+                              animation: isResolved
+                                ? "none"
+                                : "pulse 2s ease-in-out infinite",
+                            }}
+                          >
+                            <style>{`
+                              @keyframes pulse {
+                                0%, 100% { box-shadow: 0 2px 4px rgba(255,193,7,0.2); }
+                                50% { box-shadow: 0 4px 12px rgba(255,193,7,0.6); }
+                              }
+                            `}</style>
+                            <div
+                              style={{
+                                fontWeight: "bold",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              {notif.item_name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#666",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              Code: {notif.item_code}
+                            </div>
+                            <div style={{ fontSize: "13px", color: "#d97706" }}>
+                              Quantity: {notif.quantity} units
+                            </div>
+                          </div>
+                        );
+                      })
+                    ))}
+
+                  {notificationTab === "expiring" &&
+                    (expiringNotifications.length === 0 ? (
+                      <p
+                        style={{
+                          textAlign: "center",
+                          color: "#999",
+                          padding: "20px",
+                        }}
+                      >
+                        No expiring items
+                      </p>
+                    ) : (
+                      expiringNotifications.map((notif) => {
+                        const isResolved = resolvedNotifications.has(notif.id);
+                        return (
+                          <div
+                            key={notif.id}
+                            style={{
+                              padding: "12px",
+                              marginBottom: "8px",
+                              background: isResolved ? "#f5f5f5" : "#fee2e2",
+                              border: `1px solid ${
+                                isResolved ? "#ddd" : "#ef4444"
+                              }`,
+                              borderRadius: "8px",
+                              boxShadow: isResolved
+                                ? "none"
+                                : "0 2px 4px rgba(239,68,68,0.2)",
+                              animation: isResolved
+                                ? "none"
+                                : "pulseRed 2s ease-in-out infinite",
+                            }}
+                          >
+                            <style>{`
+                              @keyframes pulseRed {
+                                0%, 100% { box-shadow: 0 2px 4px rgba(239,68,68,0.2); }
+                                50% { box-shadow: 0 4px 12px rgba(239,68,68,0.6); }
+                              }
+                            `}</style>
+                            <div
+                              style={{
+                                fontWeight: "bold",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              {notif.item_name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#666",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              Code: {notif.item_code}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#dc2626",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              Expires:{" "}
+                              {new Date(notif.expires_at).toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: "13px", color: "#666" }}>
+                              Quantity: {notif.quantity} units
+                            </div>
+                          </div>
+                        );
+                      })
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
         </header>
         <div className="ops-controls ops-controls-row">
           <div className="controls-left">
@@ -648,14 +1115,15 @@ export default function IngredientsDashboard() {
           </div>
           <div className="controls-right">
             <button
-              className="transactions-btn gray-btn"
-              onClick={async () => {
-                await fetchTransactions();
-                setShowTransactionsModal(true);
-              }}
+              className="add-btn"
+              onClick={() => setShowExpiredModal(true)}
               type="button"
+              style={{
+                background: "#ef4444",
+                marginRight: "8px",
+              }}
             >
-              Stock Transactions
+              Expired Items ({expiredItems.length})
             </button>
             <button
               className="add-btn"
@@ -666,242 +1134,6 @@ export default function IngredientsDashboard() {
             </button>
           </div>
         </div>
-
-        {showTransactionsModal && (
-          <div className="modal-bg">
-            <div
-              className="adminboard-modal"
-              style={{ maxWidth: "400px", width: "100%", textAlign: "left" }}
-            >
-              <button
-                className="modal-close-x"
-                onClick={() => setShowTransactionsModal(false)}
-                aria-label="Close modal"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="25"
-                  height="25"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#000000"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ display: "block" }}
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-              <span className="adduser-title">Stock Transactions</span>
-
-              {/* Filters: Search (row 1), then Type and Category (row 2) */}
-              <div style={{ margin: "6px 0 8px" }}>
-                <div className="search-input-wrap" style={{ width: "100%" }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="search-icon"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  </svg>
-                  <input
-                    type="text"
-                    className="search"
-                    placeholder="Search"
-                    value={txSearchInput}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setTxSearchInput(val);
-                      setTxSearch(val);
-                    }}
-                    style={{ width: "100%" }}
-                  />
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  margin: "0 0 10px",
-                }}
-              >
-                <select
-                  value={txTypeFilter}
-                  onChange={(e) => setTxTypeFilter(e.target.value)}
-                  style={{
-                    padding: "6px 8px",
-                    border: "1px solid #ccc",
-                    borderRadius: 6,
-                    flex: 1,
-                  }}
-                >
-                  <option value="All">All Types</option>
-                  <option value="in">Stock In</option>
-                  <option value="out">Stock Out</option>
-                </select>
-                <select
-                  value={txCategoryFilter}
-                  onChange={(e) => setTxCategoryFilter(e.target.value)}
-                  style={{
-                    padding: "6px 8px",
-                    border: "1px solid #ccc",
-                    borderRadius: 6,
-                    flex: 1,
-                  }}
-                >
-                  <option value="All">All Categories</option>
-                  {categoryOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.value}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div
-                style={{
-                  maxHeight: "400px",
-                  minHeight: "220px",
-                  overflowY: "auto",
-                }}
-              >
-                {transactions
-                  .filter((tx) =>
-                    txTypeFilter === "All" ? true : tx.type === txTypeFilter
-                  )
-                  .filter((tx) => {
-                    if (txCategoryFilter === "All") return true;
-                    const code = tx["ingredient-list"]?.code || "";
-                    const prefix = code.split("-")[0] || "";
-                    return prefix === txCategoryFilter;
-                  })
-                  .filter((tx) => {
-                    if (!txSearch) return true;
-                    const nm = (
-                      tx["ingredient-list"]?.name || ""
-                    ).toLowerCase();
-                    return nm.includes(txSearch.toLowerCase());
-                  }).length === 0 ? (
-                  <div style={{ padding: "16px" }}>
-                    {txCategoryFilter !== "All"
-                      ? `No transactions in this category.`
-                      : `No transactions found.`}
-                  </div>
-                ) : (
-                  transactions
-                    .filter((tx) =>
-                      txTypeFilter === "All" ? true : tx.type === txTypeFilter
-                    )
-                    .filter((tx) => {
-                      if (txCategoryFilter === "All") return true;
-                      const code = tx["ingredient-list"]?.code || "";
-                      const prefix = code.split("-")[0] || "";
-                      return prefix === txCategoryFilter;
-                    })
-                    .filter((tx) => {
-                      if (!txSearch) return true;
-                      const nm = (
-                        tx["ingredient-list"]?.name || ""
-                      ).toLowerCase();
-                      return nm.includes(txSearch.toLowerCase());
-                    })
-                    .map((tx) => (
-                      <div
-                        key={tx.id}
-                        style={{
-                          border: "1px solid #ccc",
-                          borderRadius: "8px",
-                          margin: "8px 0",
-                          padding: "12px",
-                          background: tx.type === "in" ? "#e6ffe6" : "#ffe6e6",
-                        }}
-                      >
-                        <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                          Name: {tx["ingredient-list"]?.name || "Unknown"}
-                        </div>
-                        <div style={{ marginBottom: 2 }}>
-                          Category: {tx["ingredient-list"]?.code || ""}
-                        </div>
-                        <div style={{ marginBottom: 2 }}>
-                          Type:{" "}
-                          <b
-                            style={{
-                              color: tx.type === "in" ? "green" : "red",
-                            }}
-                          >
-                            {tx.type.toUpperCase()}
-                          </b>
-                        </div>
-                        <div style={{ marginBottom: 2 }}>
-                          Date:{" "}
-                          {(() => {
-                            try {
-                              const d = new Date(tx.date);
-                              if (!isNaN(d.getTime()))
-                                return d.toLocaleString();
-                              return String(tx.date || "-");
-                            } catch {
-                              return String(tx.date || "-");
-                            }
-                          })()}
-                        </div>
-                        <div style={{ marginBottom: 2 }}>
-                          Expiration:{" "}
-                          {tx.type === "in"
-                            ? tx.expires_at
-                              ? (() => {
-                                  try {
-                                    const d = new Date(tx.expires_at);
-                                    if (!isNaN(d.getTime()))
-                                      return d.toLocaleString();
-                                    return String(tx.expires_at);
-                                  } catch {
-                                    return String(tx.expires_at);
-                                  }
-                                })()
-                              : "-"
-                            : "-"}
-                        </div>
-                        <div style={{ marginBottom: 2 }}>
-                          Quantity: {tx.quantity}
-                        </div>
-                        <div style={{ marginBottom: 2 }}>
-                          Cost: ₱
-                          {tx.type === "in"
-                            ? tx.cost
-                            : (() => {
-                                const recentIn = transactions
-                                  .filter(
-                                    (t2) =>
-                                      t2.ingredient_id === tx.ingredient_id &&
-                                      t2.type === "in" &&
-                                      new Date(t2.date) <= new Date(tx.date)
-                                  )
-                                  .sort(
-                                    (a, b) =>
-                                      new Date(b.date) - new Date(a.date)
-                                  )[0];
-                                return recentIn ? recentIn.cost : "-";
-                              })()}
-                        </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Old simple controls removed; unified controls row above */}
 
@@ -950,7 +1182,23 @@ export default function IngredientsDashboard() {
                   >
                     <td>{item.category}</td>
                     <td>{item.code}</td>
-                    <td>{item.name}</td>
+                    <td>
+                      <div>{item.name}</div>
+                      {item.expirationWarning && (
+                        <div style={{ marginTop: 6 }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              color: "#dc2626",
+                              fontSize: "0.75em",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            {item.expirationWarning}
+                          </span>
+                        </div>
+                      )}
+                    </td>
                     <td>{item.units}</td>
                     <td>{item.quantity}</td>
                     <td>₱{item.cost}</td>
@@ -965,13 +1213,12 @@ export default function IngredientsDashboard() {
                           <span
                             style={{
                               display: "inline-block",
-                              background: "red",
-                              color: "white",
-                              borderRadius: "2px",
-                              padding: "2px 5px",
+                              color: "red",
+                              // borderRadius: "2px",
+                              // padding: "2px 5px",
                               fontSize: "0.75em",
                               fontWeight: "bold",
-                              letterSpacing: "0.5px",
+                              // letterSpacing: "0.5px",
                             }}
                           >
                             Low Stock
@@ -981,132 +1228,24 @@ export default function IngredientsDashboard() {
                     </td>
                     <td>
                       <button
-                        className="edit-icon-btn"
-                        onClick={() => openEditModal(item)}
-                        aria-label="Edit user"
-                        title="Edit"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
-                          <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.41l-2.34-2.34a1.003 1.003 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-                        </svg>
-                      </button>
-                      <button
-                        className="stock-in"
-                        title="Stock In"
-                        onClick={() => openStockModal(item, "in")}
+                        className="view-logs-btn"
+                        title="View Logs"
+                        onClick={() => openLogsModal(item)}
                         style={{
-                          marginLeft: "4px",
-                          padding: 0,
-                          background: "none",
+                          // marginLeft retained from previous layout where an Edit button existed
+                          padding: "6px 12px",
+                          background: "#ff9a0c",
+                          color: "white",
                           border: "none",
+                          borderRadius: "12px",
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          fontWeight: "bold",
                         }}
-                        aria-label="Stock In"
+                        aria-label="View Logs"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          aria-hidden="true"
-                        >
-                          {/* OUTER BORDER */}
-                          <rect
-                            x="1"
-                            y="1"
-                            width="22"
-                            height="22"
-                            stroke="#000"
-                            strokeWidth="1"
-                            fill="none"
-                            rx="4"
-                            ry="4"
-                          />
-
-                          {/* INNER BOX */}
-                          <rect
-                            x="5"
-                            y="8"
-                            width="14"
-                            height="10"
-                            fill="#f7d64d"
-                            stroke="#f7d64d"
-                            strokeWidth="2  "
-                          />
-
-                          {/* ARROW DOWN */}
-                          <path
-                            d="M12 4v8m0 0l-3-3m3 3l3-3"
-                            stroke="#000"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        View Logs
                       </button>
-
-                      <button
-                        className="stock-out"
-                        title="Stock Out"
-                        onClick={() => openStockModal(item, "out")}
-                        style={{
-                          marginLeft: "4px",
-                          padding: 0,
-                          background: "none",
-                          border: "none",
-                        }}
-                        aria-label="Stock Out"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          aria-hidden="true"
-                        >
-                          {/* OUTER BORDER */}
-                          <rect
-                            x="1"
-                            y="1"
-                            width="22"
-                            height="22"
-                            stroke="#000"
-                            strokeWidth="1"
-                            fill="none"
-                            rx="4"
-                            ry="4"
-                          />
-
-                          {/* INNER BOX */}
-                          <rect
-                            x="5"
-                            y="6"
-                            width="14"
-                            height="10"
-                            fill="#e46700"
-                            stroke="#e46700"
-                            strokeWidth="2"
-                          />
-
-                          {/* ARROW UP */}
-                          <path
-                            d="M12 20V12m0 0l-3 3m3-3l3 3"
-                            stroke="#000"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                      {/* duplicate img-based icons removed; inline SVG buttons above used instead */}
                     </td>
                   </tr>
                 ))
@@ -1116,7 +1255,7 @@ export default function IngredientsDashboard() {
         </div>
 
         {showStockModal && stockItem && (
-          <div className="modal-bg">
+          <div className="modal-bg" style={{ zIndex: 1200 }}>
             <div
               className="adminboard-modal"
               style={{
@@ -1314,28 +1453,13 @@ export default function IngredientsDashboard() {
 
                   {/* Transaction List */}
                   <div style={{ maxHeight: "450px", overflowY: "auto" }}>
-                    {stockOutTransactions
-                      .filter((tx) =>
-                        stockOutTxTypeFilter === "All"
-                          ? true
-                          : tx.type === stockOutTxTypeFilter
-                      )
-                      .filter((tx) => {
-                        if (!stockOutTxSearch) return true;
-                        const reason = (tx.reason || "").toLowerCase();
-                        return reason.includes(stockOutTxSearch.toLowerCase());
-                      }).length === 0 ? (
-                      <div
-                        style={{
-                          padding: "32px",
-                          textAlign: "center",
-                          color: "#666",
-                        }}
-                      >
-                        No transactions found.
-                      </div>
-                    ) : (
-                      stockOutTransactions
+                    {(() => {
+                      const sorted = [...stockOutTransactions].sort(
+                        (a, b) =>
+                          new Date(b.created_at || b.date) -
+                          new Date(a.created_at || a.date)
+                      );
+                      const filtered = sorted
                         .filter((tx) =>
                           stockOutTxTypeFilter === "All"
                             ? true
@@ -1347,79 +1471,81 @@ export default function IngredientsDashboard() {
                           return reason.includes(
                             stockOutTxSearch.toLowerCase()
                           );
-                        })
-                        .map((tx) => (
+                        });
+                      if (filtered.length === 0)
+                        return (
                           <div
-                            key={tx.id}
                             style={{
-                              border: "1px solid #ccc",
-                              borderRadius: "8px",
-                              margin: "8px 0",
-                              padding: "12px",
-                              background:
-                                tx.type === "in" ? "#e6ffe6" : "#ffe6e6",
+                              padding: "32px",
+                              textAlign: "center",
+                              color: "#666",
                             }}
                           >
+                            No transactions found.
+                          </div>
+                        );
+                      return filtered.map((tx) => (
+                        <div
+                          key={tx.id}
+                          style={{
+                            border: "1px solid #ccc",
+                            borderRadius: "8px",
+                            margin: "8px 0",
+                            padding: "12px",
+                            background:
+                              tx.type === "in" ? "#e6ffe6" : "#ffe6e6",
+                          }}
+                        >
+                          <div style={{ marginBottom: 2 }}>
+                            Type:{" "}
+                            <b
+                              style={{
+                                color: tx.type === "in" ? "green" : "red",
+                              }}
+                            >
+                              {tx.type.toUpperCase()}
+                            </b>
+                          </div>
+                          <div style={{ marginBottom: 2 }}>
+                            Date: {formatTxDate(tx)}
+                          </div>
+                          {tx.type === "in" && tx.expires_at && (
                             <div style={{ marginBottom: 2 }}>
-                              Type:{" "}
-                              <b
-                                style={{
-                                  color: tx.type === "in" ? "green" : "red",
-                                }}
-                              >
-                                {tx.type.toUpperCase()}
-                              </b>
-                            </div>
-                            <div style={{ marginBottom: 2 }}>
-                              Date:{" "}
+                              Expiration:{" "}
                               {(() => {
                                 try {
-                                  const d = new Date(tx.date);
+                                  const d = new Date(tx.expires_at);
                                   if (!isNaN(d.getTime()))
                                     return d.toLocaleString();
-                                  return String(tx.date || "-");
+                                  return String(tx.expires_at);
                                 } catch {
-                                  return String(tx.date || "-");
+                                  return String(tx.expires_at);
                                 }
                               })()}
                             </div>
-                            {tx.type === "in" && tx.expires_at && (
-                              <div style={{ marginBottom: 2 }}>
-                                Expiration:{" "}
-                                {(() => {
-                                  try {
-                                    const d = new Date(tx.expires_at);
-                                    if (!isNaN(d.getTime()))
-                                      return d.toLocaleString();
-                                    return String(tx.expires_at);
-                                  } catch {
-                                    return String(tx.expires_at);
-                                  }
-                                })()}
-                              </div>
-                            )}
-                            <div style={{ marginBottom: 2 }}>
-                              Quantity: {tx.quantity}
-                            </div>
-                            {tx.type === "in" && (
-                              <div style={{ marginBottom: 2 }}>
-                                Cost: ₱{tx.cost || "-"}
-                              </div>
-                            )}
-                            {tx.reason && (
-                              <div
-                                style={{
-                                  marginBottom: 2,
-                                  fontStyle: "italic",
-                                  color: "#555",
-                                }}
-                              >
-                                Reason: {tx.reason}
-                              </div>
-                            )}
+                          )}
+                          <div style={{ marginBottom: 2 }}>
+                            Quantity: {tx.quantity}
                           </div>
-                        ))
-                    )}
+                          {tx.type === "in" && (
+                            <div style={{ marginBottom: 2 }}>
+                              Cost: ₱{tx.cost || "-"}
+                            </div>
+                          )}
+                          {tx.reason && (
+                            <div
+                              style={{
+                                marginBottom: 2,
+                                fontStyle: "italic",
+                                color: "#555",
+                              }}
+                            >
+                              Reason: {tx.reason}
+                            </div>
+                          )}
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -1590,12 +1716,15 @@ export default function IngredientsDashboard() {
           </div>
         )}
 
-        {showEditModal && editItem && (
-          <div className="modal-bg">
-            <div className="adminboard-modal">
+        {showLogsModal && logsItem && (
+          <div className="modal-bg" style={{ zIndex: 1100 }}>
+            <div
+              className="adminboard-modal"
+              style={{ maxWidth: "600px", width: "100%", textAlign: "left" }}
+            >
               <button
                 className="modal-close-x"
-                onClick={() => setShowEditModal(false)}
+                onClick={() => setShowLogsModal(false)}
                 aria-label="Close modal"
               >
                 <svg
@@ -1614,67 +1743,386 @@ export default function IngredientsDashboard() {
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
-              <span className="adduser-title">EDIT ITEM</span>
-              <form className="adduser-form" onSubmit={handleEditSubmit}>
-                <label>Category</label>
-                <select
-                  name="category"
-                  value={editValues.category}
-                  disabled
-                  required
+              <span className="adduser-title">
+                Stock Movement Logs - {logsItem.name}
+              </span>
+
+              <div style={{ display: "flex", gap: "8px", margin: "12px 0" }}>
+                <button
+                  onClick={() => openStockModal(logsItem, "in")}
+                  style={{
+                    flex: 1,
+                    padding: "8px 16px",
+                    background: "#10b981",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
                 >
-                  <option value="">Select Category</option>
-                  {categoryOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  Stock In
+                </button>
+                <button
+                  onClick={() => {
+                    setStockItem(logsItem);
+                    setStockType("out");
+                    setStockValues({
+                      quantity: "",
+                      cost: "",
+                      expires_at: "",
+                      reason: "",
+                    });
+                    setShowDeductForm(true);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "8px 16px",
+                    background: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Deduct
+                </button>
+              </div>
 
-                <label>Item Name</label>
-                <input name="name" value={editValues.name} readOnly required />
+              <div
+                style={{
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                  marginTop: "16px",
+                }}
+              >
+                {itemLogs.length === 0 ? (
+                  <p
+                    style={{
+                      textAlign: "center",
+                      color: "#999",
+                      padding: "20px",
+                    }}
+                  >
+                    No stock movement logs
+                  </p>
+                ) : (
+                  [...itemLogs]
+                    .sort(
+                      (a, b) =>
+                        new Date(b.created_at || b.date) -
+                        new Date(a.created_at || a.date)
+                    )
+                    .map((log) => (
+                      <div
+                        key={log.id}
+                        style={{
+                          border: "1px solid #ccc",
+                          borderRadius: "8px",
+                          margin: "8px 0",
+                          padding: "12px",
+                          background: log.type === "in" ? "#e6ffe6" : "#ffe6e6",
+                        }}
+                      >
+                        <div
+                          style={{ fontWeight: "bold", marginBottom: "4px" }}
+                        >
+                          Type:{" "}
+                          <span
+                            style={{
+                              color: log.type === "in" ? "green" : "red",
+                            }}
+                          >
+                            {log.type === "in" ? "Stock In" : "Deduct"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "13px", marginBottom: "2px" }}>
+                          Date: {formatTxDate(log)}
+                        </div>
+                        <div style={{ fontSize: "13px", marginBottom: "2px" }}>
+                          Quantity: {log.quantity}
+                        </div>
+                        {log.type === "in" && (
+                          <>
+                            <div
+                              style={{ fontSize: "13px", marginBottom: "2px" }}
+                            >
+                              Cost: {log.cost ? log.cost.toLocaleString() : "-"}
+                            </div>
+                            <div
+                              style={{ fontSize: "13px", marginBottom: "2px" }}
+                            >
+                              Expires:{" "}
+                              {log.expires_at
+                                ? new Date(log.expires_at).toLocaleString()
+                                : "None"}
+                            </div>
+                          </>
+                        )}
+                        {log.type === "out" && log.reason && (
+                          <div
+                            style={{ fontSize: "13px", marginBottom: "2px" }}
+                          >
+                            Reason: {log.reason}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-                <div className="two-col-row">
-                  <div>
-                    <label>Item Code</label>
-                    <input
-                      name="code"
-                      value={editValues.code}
-                      readOnly
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label>Units</label>
-                    <input
-                      name="units"
-                      value={editValues.units}
-                      readOnly
-                      required
-                    />
-                  </div>
+        {showDeductForm && stockItem && (
+          <div className="modal-bg" style={{ zIndex: 1200 }}>
+            <div
+              className="adminboard-modal"
+              style={{ maxWidth: "420px", width: "100%", textAlign: "left" }}
+            >
+              <button
+                className="modal-close-x"
+                onClick={() => setShowDeductForm(false)}
+                aria-label="Close modal"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="25"
+                  height="25"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#000000"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: "block" }}
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+              <span className="adduser-title">
+                Deduct Stock - {stockItem.name}
+              </span>
+
+              <form
+                className="adduser-form"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setStockError("");
+
+                  // Validate available quantity
+                  const { data: movs } = await supabase
+                    .from("stock_movement")
+                    .select(
+                      "id, ingredient_id, type, quantity, cost, expires_at, date, created_at"
+                    )
+                    .eq("ingredient_id", stockItem.id);
+
+                  const { quantity: availableNow } = computeAvailableQty(
+                    movs || []
+                  );
+                  const outQty = Number(stockValues.quantity);
+
+                  if (outQty > availableNow) {
+                    setStockError(
+                      `Cannot deduct more than available (${availableNow}).`
+                    );
+                    return;
+                  }
+
+                  setLoading(true);
+                  const txData = {
+                    ingredient_id: stockItem.id,
+                    type: "out",
+                    date: new Date().toISOString(),
+                    quantity: Number(stockValues.quantity),
+                    status: "completed",
+                    created_at: new Date().toISOString(),
+                    reason: stockValues.reason,
+                  };
+
+                  const { error } = await supabase
+                    .from("stock_movement")
+                    .insert([txData]);
+
+                  if (!error) {
+                    setShowDeductForm(false);
+                    setStockError("");
+                    await fetchItems();
+                    // Mark as resolved if reason contains "expired"
+                    if (
+                      stockValues.reason &&
+                      stockValues.reason.toLowerCase().includes("expired")
+                    ) {
+                      const newResolved = new Set(resolvedNotifications);
+                      expiringNotifications.forEach((notif) => {
+                        if (notif.item_id === stockItem.id) {
+                          newResolved.add(notif.id);
+                        }
+                      });
+                      setResolvedNotifications(newResolved);
+                    }
+                    // Refresh logs if modal is open
+                    if (showLogsModal) {
+                      const { data } = await supabase
+                        .from("stock_movement")
+                        .select("*")
+                        .eq("ingredient_id", stockItem.id)
+                        .order("date", { ascending: false });
+                      if (data) setItemLogs(data);
+                    }
+                  }
+                  setLoading(false);
+                }}
+              >
+                <div style={{ marginBottom: 12 }}>
+                  <label>Quantity *</label>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={stockValues.quantity}
+                    onChange={handleStockChange}
+                    min="1"
+                    required
+                  />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label>Reason *</label>
+                  <input
+                    type="text"
+                    name="reason"
+                    value={stockValues.reason}
+                    onChange={handleStockChange}
+                    required
+                    placeholder="e.g., expired, damaged, used in production"
+                  />
                 </div>
 
-                <label>Status</label>
-                <select
-                  name="status"
-                  value={editValues.status}
-                  disabled
-                  required
-                >
-                  <option value="Inactive">Inactive</option>
-                  <option value="Active">Active</option>
-                </select>
+                {stockError && (
+                  <div
+                    style={{
+                      color: "red",
+                      marginBottom: "12px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {stockError}
+                  </div>
+                )}
 
                 <div className="single-confirm-wrap">
                   <button
                     type="submit"
                     className="btn-confirm full-width-confirm"
+                    disabled={loading}
                   >
-                    Confirm
+                    {loading ? "Processing..." : "Confirm Deduct"}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {showExpiredModal && (
+          <div className="modal-bg" style={{ zIndex: 1200 }}>
+            <div
+              className="adminboard-modal"
+              style={{ maxWidth: "700px", width: "100%", textAlign: "left" }}
+            >
+              <button
+                className="modal-close-x"
+                onClick={() => setShowExpiredModal(false)}
+                aria-label="Close modal"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="25"
+                  height="25"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#000000"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: "block" }}
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+              <span className="adduser-title">EXPIRED ITEMS</span>
+
+              <div
+                style={{
+                  maxHeight: "500px",
+                  overflowY: "auto",
+                  marginTop: "16px",
+                }}
+              >
+                {expiredItems.length === 0 ? (
+                  <p
+                    style={{
+                      textAlign: "center",
+                      color: "#999",
+                      padding: "20px",
+                    }}
+                  >
+                    No expired items
+                  </p>
+                ) : (
+                  expiredItems.map((exp) => (
+                    <div
+                      key={exp.id}
+                      style={{
+                        border: "1px solid #ef4444",
+                        borderRadius: "8px",
+                        margin: "8px 0",
+                        padding: "12px",
+                        background: "#fee2e2",
+                      }}
+                    >
+                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                        {exp.item_name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "#666",
+                          marginBottom: "2px",
+                        }}
+                      >
+                        Code: {exp.item_code}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "#dc2626",
+                          marginBottom: "2px",
+                        }}
+                      >
+                        Expired: {exp.expired_at.toLocaleString()}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "#666",
+                          marginBottom: "2px",
+                        }}
+                      >
+                        Original Quantity: {exp.quantity}
+                      </div>
+                      {exp.cost && (
+                        <div style={{ fontSize: "13px", color: "#666" }}>
+                          Cost: ₱{exp.cost}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
